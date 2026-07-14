@@ -1,0 +1,14 @@
+{
+  "name": "router-control-agent",
+  "version": "1.0.0",
+  "description": "Local agent for Huawei HG8145X6-10 router automation via Laravel WebSocket",
+  "main": "worker.js",
+  "scripts": {
+    "start": "node worker.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "pusher-js": "^8.4.0",
+    "puppeteer": "^24.0.0"
+  }
+}
