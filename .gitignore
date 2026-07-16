@@ -25,6 +25,7 @@ Thumbs.db
 /local-agent/node_modules
 /local-agent/.env
 /local-agent/agent-state.json
+/local-agent/browser-data
 redamon/
 memory.md
 .mimocode/
@@ -32,3 +33,5 @@ wifi-scanner/.scanner_data
 wifi-scanner/.wifi_scanner_auth
 wifi-scanner/.scan_rate_log
 wifi-scanner/__pycache__/
+cred-scanner/credentials.db
+cred-scanner/__pycache__/

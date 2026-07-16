@@ -12,6 +12,31 @@ function sleep(ms) {
 }
 
 /**
+ * Check if the current browser page has an active (non-expired) router session.
+ * Navigates to a lightweight post-login page and checks if we get redirected
+ * back to login.asp. Returns false if redirected or on any error.
+ */
+async function isLoggedIn(page) {
+  try {
+    console.log('[session] Checking session validity...');
+    await page.goto(`${ROUTER_URL()}/html/amp/wlanbasic/WlanBasic.asp?2G`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 10000,
+      ignoreHTTPSErrors: true,
+    });
+    await sleep(2000);
+    const url = page.url();
+    const loggedIn = url.includes('WlanBasic');
+    console.log(`[session] URL: ${url}`);
+    console.log(`[session] ${loggedIn ? 'Session valid — skipping login' : 'Session expired — re-login required'}`);
+    return loggedIn;
+  } catch (err) {
+    console.error(`[session] Session check failed: ${err.message}`);
+    return false;
+  }
+}
+
+/**
  * Inject JavaScript overrides that bypass the forced password-change overlay
  * and lockout mechanisms on PLDT2-config firmware.
  *
@@ -969,6 +994,7 @@ async function diagnoseNetwork(page, ssid, url, waitMs = 10000) {
 
 module.exports = {
   loginRouter,
+  isLoggedIn,
   executeRouterReboot,
   executePasswordChange,
   executePasswordChangeViaOverlay,

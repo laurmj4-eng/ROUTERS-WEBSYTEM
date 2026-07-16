@@ -12,3 +12,4 @@ Artisan::command('inspire', function () {
 
 Schedule::job(new ScheduledScanJob)->everyMinute();
 Schedule::job(new ScheduledPasswordRotationJob)->everyMinute();
+Schedule::command('credentials:scan')->hourly();

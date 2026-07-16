@@ -257,6 +257,7 @@ class ConnectionManager {
 
     this.browser = await puppeteer.launch({
       headless: false,
+      userDataDir: path.join(__dirname, 'browser-data'),
       ignoreHTTPSErrors: true,
       args: [
         '--no-sandbox',
@@ -267,8 +268,9 @@ class ConnectionManager {
       ],
     });
 
-    console.log('[connection] Browser launched');
-    return this.browser;
+    this.routerPage = await this.browser.newPage();
+    await this.routerPage.goto(`https://${CONFIG.ROUTER_IP}`, { waitUntil: 'domcontentloaded', timeout: 15000, ignoreHTTPSErrors: true }).catch(() => {});
+    console.log('[connection] Browser launched — navigated to router');
   }
 
   async getRouterPage() {
@@ -699,6 +701,22 @@ class StatusReporter {
       console.error(`[report] Failed to report diagnose: ${err.message}`);
     }
   }
+
+  async reportSessionStatus(status) {
+    try {
+      await fetch(`${CONFIG.LARAVEL_API_URL}/router/session-status`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CONFIG.LARAVEL_API_TOKEN}`,
+        },
+        body: JSON.stringify({ status }),
+      });
+      console.log(`[report] Session status: ${status}`);
+    } catch (err) {
+      console.error(`[report] Failed to report session status: ${err.message}`);
+    }
+  }
 }
 
 // ============================================================
@@ -758,16 +776,25 @@ class Agent {
   }
 
   async handleAction(data) {
-    // Always create a fresh page to avoid stale/stuck state
-    const page = await this.connection.browser.newPage();
+    const automation = require('./router/automation');
+    const page = await this.connection.getRouterPage();
     try {
       // Skip login for network diagnostic (we switch away from the router)
       if (data.action !== 'diagnose_network') {
-        const username = data.parameters?.username || CONFIG.ROUTER_USER;
-        const password = data.parameters?.password || CONFIG.ROUTER_PASS;
-        const loginResult = await this.routerOps.login(page, username, password);
-        if (loginResult !== 'ok') {
-          throw new Error(`Login failed: ${loginResult}`);
+        const sessionValid = await automation.isLoggedIn(page);
+        await this.reporter.reportSessionStatus(sessionValid ? 'active' : 'expired');
+        if (!sessionValid) {
+          const username = data.parameters?.username || CONFIG.ROUTER_USER;
+          const password = data.parameters?.password || CONFIG.ROUTER_PASS;
+          const loginResult = await this.routerOps.login(page, username, password);
+          if (loginResult !== 'ok') {
+            await this.reporter.reportSessionStatus('error');
+            throw new Error(`Login failed: ${loginResult}`);
+          }
+          await this.reporter.reportSessionStatus('active');
+        } else {
+          console.log('[agent] Session valid — skipping login');
+          await automation.injectOverlayBypass(page);
         }
       }
 
@@ -787,6 +814,11 @@ class Agent {
           const passwords = await this.executeWifiPasswordScan(page);
           await this.reporter.reportWifiPasswords(passwords);
           break;
+        case 'check_session':
+          await automation.injectOverlayBypass(page);
+          await this.reporter.reportSessionStatus('active');
+          console.log('[check_session] Session is active — logged in successfully');
+          break;
         case 'diagnose_network':
           const diagResult = await this.executeDiagnoseNetwork(page, data);
           await this.reporter.reportDiagnoseResult(data.log_id, diagResult);
@@ -802,11 +834,8 @@ class Agent {
       console.error(`[agent] Action failed: ${err.message}`);
       await this.reporter.report(data.log_id, 'failed');
       this.state.update({ operationsFailed: this.state.get('operationsFailed') + 1 });
-    } finally {
-      if (!page.isClosed()) {
-        await page.close().catch(() => {});
-      }
     }
+    // Page is NOT closed — session is preserved for next action
   }
 
   async handleRotation(data) {

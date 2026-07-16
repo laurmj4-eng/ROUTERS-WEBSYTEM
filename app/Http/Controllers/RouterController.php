@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Events\RouterActionTriggered;
+use App\Models\CredentialScanResult;
 use App\Models\RouterCredential;
 use App\Models\RouterLog;
 use App\Models\RouterStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 
@@ -244,6 +246,129 @@ class RouterController extends Controller
             'success' => true,
             'log_id'  => $log->id,
             'message' => 'Network diagnostic dispatched.',
+        ]);
+    }
+
+    public function triggerSessionCheck(): JsonResponse
+    {
+        $log = RouterLog::create([
+            'action_type'  => 'check_session',
+            'payload'      => null,
+            'status'       => 'pending',
+            'triggered_by' => request()->ip(),
+        ]);
+
+        $this->safeBroadcast(new RouterActionTriggered(
+            logId: $log->id,
+            action: 'check_session',
+        ));
+
+        return response()->json([
+            'success' => true,
+            'log_id'  => $log->id,
+            'message' => 'Session check dispatched.',
+        ]);
+    }
+
+    public function updateSessionStatus(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'status' => 'required|in:active,expired,error',
+        ]);
+
+        \Cache::put('router_session_status', [
+            'status'    => $validated['status'],
+            'checked_at' => now()->toISOString(),
+        ], 3600);
+
+        return response()->json(['success' => true]);
+    }
+
+    public function getSessionStatus(): JsonResponse
+    {
+        $cached = \Cache::get('router_session_status', [
+            'status'     => 'unknown',
+            'checked_at' => null,
+        ]);
+
+        return response()->json(['data' => $cached]);
+    }
+
+    public function getCredentialScans(): JsonResponse
+    {
+        $scans = CredentialScanResult::latest()->take(20)->get();
+        return response()->json(['data' => $scans]);
+    }
+
+    public function getLatestCredentialScan(): JsonResponse
+    {
+        $scan = CredentialScanResult::latest()->first();
+        return response()->json(['data' => $scan]);
+    }
+
+    public function triggerCredentialScan(Request $request): JsonResponse
+    {
+        $reportOnly = $request->boolean('report_only', false);
+        $url = $request->input('url');
+
+        $exitCode = Artisan::call('credentials:scan', array_filter([
+            '--url' => $url,
+            '--report-only' => $reportOnly,
+        ]));
+
+        $scanResult = CredentialScanResult::latest()->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => $exitCode === 2
+                ? 'Default credentials found!'
+                : 'Credential scan completed — no defaults found.',
+            'data' => $scanResult,
+        ]);
+    }
+
+    public function triggerPasswordDiscovery(Request $request): JsonResponse
+    {
+        $url = $request->input('url');
+        $wordlist = $request->input('wordlist');
+        $maxAttempts = $request->input('max_attempts', 500);
+        $username = $request->input('username', 'admin');
+
+        $params = array_filter([
+            '--url' => $url,
+            '--discover' => true,
+            '--wordlist' => $wordlist,
+            '--max-attempts' => $maxAttempts,
+            '--username' => $username,
+        ]);
+
+        $exitCode = Artisan::call('credentials:scan', $params);
+
+        $scanResult = CredentialScanResult::latest()->first();
+
+        return response()->json([
+            'success' => true,
+            'message' => $exitCode === 3
+                ? 'Password discovered!'
+                : 'Discovery completed — password not found in wordlist.',
+            'data' => $scanResult,
+        ]);
+    }
+
+    public function getDiscoveryStatus(string $id): JsonResponse
+    {
+        $scan = CredentialScanResult::find($id);
+
+        if (!$scan) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Scan not found',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $scan,
         ]);
     }
 }

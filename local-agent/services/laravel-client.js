@@ -135,4 +135,27 @@ async function reportDiagnoseResult(logId, result) {
   }
 }
 
-module.exports = { reportStatus, reportScanResults, reportRotationStatus, reportWifiPasswords, reportDiagnoseResult };
+async function reportSessionStatus(status) {
+  const url = `${process.env.LARAVEL_API_URL}/router/session-status`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.LARAVEL_API_TOKEN}`,
+      },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!res.ok) {
+      console.error(`[laravel-client] Session status report failed: ${res.status}`);
+    } else {
+      console.log(`[laravel-client] Session status: ${status}`);
+    }
+  } catch (err) {
+    console.error('[laravel-client] Could not reach Laravel API for session status:', err.message);
+  }
+}
+
+module.exports = { reportStatus, reportScanResults, reportRotationStatus, reportWifiPasswords, reportDiagnoseResult, reportSessionStatus };

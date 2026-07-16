@@ -39,6 +39,9 @@ Route::post('/router/scan/results', [RouterController::class, 'storeScanResults'
 Route::get('/router/status', [RouterController::class, 'getRouterStatus']);
 Route::post('/router/wifi-scan', [RouterController::class, 'triggerWifiPasswordScan']);
 Route::get('/router/credential', [RouterController::class, 'getActiveCredential']);
+Route::post('/router/session-status', [RouterController::class, 'updateSessionStatus']);
+Route::get('/router/session-status', [RouterController::class, 'getSessionStatus']);
+Route::post('/router/session-check', [RouterController::class, 'triggerSessionCheck']);
 Route::post('/router/diagnose', [RouterController::class, 'triggerDiagnose']);
 
 // Password rotation routes
@@ -54,6 +57,15 @@ Route::post('/router/rotation/update-credentials', [RouterRotationController::cl
 // WiFi Password Scanner
 Route::post('/scan/wifi-passwords', [NetworkScanController::class, 'storeWifiPasswords']);
 Route::get('/scan/wifi-passwords', [NetworkScanController::class, 'getWifiPasswords']);
+
+// Default Credential Scanner
+Route::get('/credential-scans', [RouterController::class, 'getCredentialScans']);
+Route::get('/credential-scans/latest', [RouterController::class, 'getLatestCredentialScan']);
+Route::post('/credential-scan/trigger', [RouterController::class, 'triggerCredentialScan']);
+
+// Password Discovery
+Route::post('/credential-scan/discover', [RouterController::class, 'triggerPasswordDiscovery']);
+Route::get('/credential-scan/discover/status/{id}', [RouterController::class, 'getDiscoveryStatus']);
 
 // Network Diagnostic
 Route::post('/scan/diagnose', [NetworkScanController::class, 'storeDiagnoseResult']);
