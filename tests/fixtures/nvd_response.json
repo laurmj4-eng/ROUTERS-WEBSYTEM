@@ -1,0 +1,49 @@
+{
+  "resultsPerPage": 20,
+  "startIndex": 0,
+  "totalResults": 2,
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2021-20090",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "A path traversal vulnerability in Huawei HG8145X6-10 router allows unauthorized file access."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {
+              "cvssData": {
+                "baseScore": 9.8,
+                "baseSeverity": "CRITICAL"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2020-16846",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "Command injection vulnerability in Huawei HG series routers."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {
+              "cvssData": {
+                "baseScore": 9.8,
+                "baseSeverity": "CRITICAL"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

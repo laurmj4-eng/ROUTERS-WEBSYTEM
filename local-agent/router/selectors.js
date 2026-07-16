@@ -37,9 +37,74 @@ module.exports = {
   // These targets are navigated to inside the frame-based admin panel.
   postLogin: {
     // WLAN 2.4G Basic Settings page (typical Huawei ONT path)
-    wlan24G:  '/html/ssmp/wireless/basic/index.asp',
-    wlan5G:   '/html/ssmp/wireless/basic5g/index.asp',
+    wlan24G:  'html/amp/wlanbasic/WlanBasic.asp?2G',
+    wlan5G:   'html/amp/wlanbasic/WlanBasic.asp?5G',
     // System Tools → Reboot page
-    reboot:   '/html/ssmp/management/reboot.asp',
+    reboot:   'html/ssmp/management/reboot.asp',
+  },
+
+  // Network scan — selectors for scraping router configuration.
+  networkScan: {
+    wlan24G: {
+      path: 'html/amp/wlanbasic/WlanBasic.asp?2G',
+      ssidName: [
+        'input#wlSsid',
+        'input#txt_ssidname',
+        'input[name="SSIDName"]',
+        'input[name="ssid"]',
+        'input[name="WLASSSID"]',
+      ],
+      ssidPassword: [
+        'input#wlWpaPsk',
+        'input#txt_ssidpassword',
+        'input[name="PreSharedKey"]',
+        'input[name="KeyPassphrase"]',
+        'input[name="WPAKey"]',
+      ],
+    },
+    wlan5G: {
+      path: 'html/amp/wlanbasic/WlanBasic.asp?5G',
+      ssidName: [
+        'input#txt_ssidname5g',
+        'input#txt_ssidname',
+        'input[name="SSIDName"]',
+        'input[name="ssid"]',
+        'input[name="WLASSSID"]',
+      ],
+      ssidPassword: [
+        'input#txt_ssidpassword5g',
+        'input#txt_ssidpassword',
+        'input[name="PreSharedKey"]',
+        'input[name="KeyPassphrase"]',
+        'input[name="WPAKey"]',
+      ],
+    },
+    connectedDevices: {
+      path: 'html/bbsp/userdevinfo/userdevinfo.asp',
+      fallbackPaths: [
+        'html/ssmp/dhcp/clients.asp',
+        'html/ssmp/status/dhcp_list.asp',
+      ],
+      deviceRows: 'table#devlist tr.trTabContent, table.dhcp_list tr, table.ClientList tr, table#dhcp_list tr, table tr',
+      deviceCount: [
+        'span#device_count',
+        'span.device-num',
+        'td.device_count',
+      ],
+    },
+    connectionStatus: {
+      paths: [
+        'html/ssmp/waninfo/waninfo.asp',
+        'html/bbsp/waninfo/waninfo.asp',
+        'html/ssmp/deviceinfo/deviceinfo.asp',
+      ],
+      indicators: [
+        'span#internet_status',
+        'span#wan_status',
+        'div.wan-status',
+        'td.connection_status',
+        'span.connection-status',
+      ],
+    },
   },
 };

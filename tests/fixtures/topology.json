@@ -1,0 +1,23 @@
+{
+  "network_name": "Home Network",
+  "devices": [
+    {
+      "name": "Router",
+      "mac_address": "00:E0:FC:12:34:56",
+      "ip_address": "192.168.1.1",
+      "device_type": "router"
+    },
+    {
+      "name": "Work Laptop",
+      "mac_address": "00:1A:79:AB:CD:EF",
+      "ip_address": "192.168.1.100",
+      "device_type": "laptop"
+    },
+    {
+      "name": "Raspberry Pi",
+      "mac_address": "B8:27:EB:12:34:56",
+      "ip_address": "192.168.1.101",
+      "device_type": "iot"
+    }
+  ]
+}

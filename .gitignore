@@ -24,3 +24,11 @@ Homestead.yaml
 Thumbs.db
 /local-agent/node_modules
 /local-agent/.env
+/local-agent/agent-state.json
+redamon/
+memory.md
+.mimocode/
+wifi-scanner/.scanner_data
+wifi-scanner/.wifi_scanner_auth
+wifi-scanner/.scan_rate_log
+wifi-scanner/__pycache__/

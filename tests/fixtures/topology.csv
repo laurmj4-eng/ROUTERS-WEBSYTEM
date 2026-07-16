@@ -1,0 +1,4 @@
+name,mac_address,ip_address,device_type
+Router,00:E0:FC:12:34:56,192.168.1.1,router
+Work Laptop,00:1A:79:AB:CD:EF,192.168.1.100,laptop
+Raspberry Pi,B8:27:EB:12:34:56,192.168.1.101,iot
