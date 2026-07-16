@@ -256,7 +256,7 @@ class ConnectionManager {
     console.log('[connection] Launching browser...');
 
     this.browser = await puppeteer.launch({
-      headless: 'new',
+      headless: false,
       ignoreHTTPSErrors: true,
       args: [
         '--no-sandbox',
@@ -904,12 +904,13 @@ class Agent {
 
     for (const { band, path } of bands) {
       try {
-        console.log(`[wifi-scan] Scanning ${band}...`);
+        console.log(`[wifi-scan] Navigating to ${band} settings page...`);
         await page.goto(`https://${CONFIG.ROUTER_IP}/${path}`, {
           waitUntil: 'domcontentloaded',
           timeout: CONFIG.ROUTER_TIMEOUT,
           ignoreHTTPSErrors: true,
         });
+        console.log(`[wifi-scan] ${band} page loaded — reading WiFi credentials...`);
         await new Promise(r => setTimeout(r, 3000));
 
         // Read directly from the router's JavaScript variables
@@ -936,6 +937,7 @@ class Agent {
       }
     }
 
+    console.log(`[wifi-scan] Scan complete — ${results.length} bands scanned`);
     return results;
   }
 
