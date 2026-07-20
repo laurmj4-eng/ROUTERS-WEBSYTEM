@@ -21,7 +21,8 @@ import json
 import sys
 from pathlib import Path
 
-from scanner import DefaultCredentialScanner
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from browser.scanner import DefaultCredentialScanner
 
 
 def main():

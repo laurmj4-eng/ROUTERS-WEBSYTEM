@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+  <name>bruteforce_tmp</name>
+  <SSIDConfig>
+    <SSID>
+      <name>PLDTHOMEFIBRBd6BN</name>
+    </SSID>
+  </SSIDConfig>
+  <connectionType>ESS</connectionType>
+  <connectionMode>manual</connectionMode>
+  <autoSwitch>false</autoSwitch>
+  <MSM>
+    <security>
+      <authEncryption>
+        <authentication>WPA2PSK</authentication>
+        <encryption>AES</encryption>
+        <useOneX>false</useOneX>
+      </authEncryption>
+      <sharedKey>
+        <keyType>passPhrase</keyType>
+        <protected>false</protected>
+        <keyMaterial>PLDTWIFIACy3j</keyMaterial>
+      </sharedKey>
+    </security>
+  </MSM>
+</WLANProfile>

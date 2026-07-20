@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\BruteForceController;
 use App\Http\Controllers\NetworkScanController;
 use App\Http\Controllers\RouterController;
 use App\Http\Controllers\RouterRotationController;
@@ -43,6 +44,8 @@ Route::post('/router/session-status', [RouterController::class, 'updateSessionSt
 Route::get('/router/session-status', [RouterController::class, 'getSessionStatus']);
 Route::post('/router/session-check', [RouterController::class, 'triggerSessionCheck']);
 Route::post('/router/diagnose', [RouterController::class, 'triggerDiagnose']);
+Route::post('/router/scan-password', [RouterController::class, 'scanPassword']);
+Route::post('/router/scan-config-file', [RouterController::class, 'scanConfigFile']);
 
 // Password rotation routes
 Route::get('/router/rotation/status', [RouterRotationController::class, 'getRotationStatus']);
@@ -70,6 +73,14 @@ Route::get('/credential-scan/discover/status/{id}', [RouterController::class, 'g
 // Network Diagnostic
 Route::post('/scan/diagnose', [NetworkScanController::class, 'storeDiagnoseResult']);
 Route::get('/scan/diagnose', [NetworkScanController::class, 'getDiagnoseResults']);
+
+// WiFi Brute-Force
+Route::post('/router/bruteforce/start', [BruteForceController::class, 'start']);
+Route::post('/router/bruteforce/progress', [BruteForceController::class, 'progress']);
+Route::post('/router/bruteforce/found', [BruteForceController::class, 'found']);
+Route::post('/router/bruteforce/complete', [BruteForceController::class, 'complete']);
+Route::post('/router/bruteforce/stop', [BruteForceController::class, 'stop']);
+Route::get('/router/bruteforce/status/{id}', [BruteForceController::class, 'status']);
 
 // Network scanning routes (authenticated + rate-limited)
 Route::prefix('scan')->middleware(['auth:sanctum', 'throttle:network-scan'])->group(function () {

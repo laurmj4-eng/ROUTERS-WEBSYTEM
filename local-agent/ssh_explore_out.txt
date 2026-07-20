@@ -1,0 +1,54 @@
+
+Password is default value, please modify it!
+WAP>cat /mnt/jffs2/hw_ctree.xml
+ERROR::Command is not existed
+
+WAP>shell
+ERROR::Command is not existed
+
+WAP>sh
+ERROR::Command is not existed
+
+WAP>!ls
+ERROR::Command is not existed
+
+WAP>!cat /mnt/jffs2/hw_ctree.xml
+ERROR::Command is not existed
+
+WAP>/bin/sh
+ERROR::Command is not existed
+
+WAP>exec cat /mnt/jffs2/hw_ctree.xml
+ERROR::Command is not existed
+
+WAP>system cat /mnt/jffs2/hw_ctree.xmlcli
+ERROR::Command is not existed
+
+WAP>bash
+ERROR::Command is not existed
+
+WAP>debug shell
+ERROR::Command is not existed
+
+WAP>diagnose shell
+ERROR::Redundant para is inputted in CLI
+
+WAP>su shell
+ERROR::Redundant para is inputted in CLI
+
+WAP>start shell
+ERROR::Command is not existed
+
+WAP>pwd
+ERROR::Command is not existed
+
+WAP>ls
+ERROR::Command is not existed
+
+WAP>ll /mnt/jffs2/
+ERROR::Command is not existed
+
+WAP>ls -la /mnt/jffs2/
+ERROR::Command is not existed
+
+WAP>

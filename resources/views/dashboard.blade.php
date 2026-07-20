@@ -106,7 +106,8 @@
         .nav-icon-wifi-pass { background: #1e3a5f; }
         .nav-icon-network { background: #065f46; }
         .nav-icon-scanner { background: #422006; }
-        .nav-icon-log { background: #1e293b; border: 1px solid #334155; }
+        .nav-icon-password-scanner { background: #4a1942; }
+.nav-icon-log { background: #1e293b; border: 1px solid #334155; }
 
         .sidebar-footer {
             padding: 16px 20px;
@@ -434,7 +435,11 @@
         <div class="sidebar-nav-label">Tools</div>
         <div class="sidebar-nav-item" data-page="scanner" onclick="navigateTo('scanner')">
             <div class="nav-icon nav-icon-scanner">&#128269;</div>
-            WiFi Password Scanner
+            Password Scanner Using Admin
+        </div>
+        <div class="sidebar-nav-item" data-page="password-scanner" onclick="navigateTo('password-scanner')">
+            <div class="nav-icon nav-icon-password-scanner">&#128477;</div>
+            Password Scanner using adminpldt
         </div>
         <div class="sidebar-nav-item" data-page="log" onclick="navigateTo('log')">
             <div class="nav-icon nav-icon-log">&#128196;</div>
@@ -461,6 +466,7 @@
         @include('dashboard.wifi-password')
         @include('dashboard.network')
         @include('dashboard.scanner')
+        @include('dashboard.password-scanner')
         @include('dashboard.log')
 
     </div>
@@ -473,13 +479,21 @@
     let logPage = 1;
     const logPerPage = 10;
 
+    function esc(s) {
+        if (s == null) return '';
+        const div = document.createElement('div');
+        div.appendChild(document.createTextNode(String(s)));
+        return div.innerHTML;
+    }
+
     // --- Navigation ---
     const pageTitles = {
         'reboot':      ['System Reboot', 'Reboot your Huawei router remotely'],
         'session':     ['Router Session', 'View and check agent session status'],
         'wifi-pass':   ['Wi-Fi Password', 'Change the Wi-Fi password on both 2.4G and 5G'],
         'network':     ['Network Status', 'View connected devices and network info'],
-        'scanner':     ['WiFi Password Scanner', 'Discover saved WiFi passwords from the router'],
+        'scanner':     ['Password Scanner Using Admin', 'Scan router config using adminpldt to decrypt WiFi passwords and crack admin hashes'],
+        'password-scanner': ['Password Scanner using adminpldt', 'Decrypt WiFi passwords from router config backup using adminpldt credentials'],
         'log':         ['Activity Log', 'View all triggered actions and their status'],
     };
 
@@ -689,7 +703,7 @@
         }, 2000);
     }
 
-    // --- WiFi Password Scanner ---
+    // --- Password Scanner Using Admin ---
     async function triggerWifiScan() {
         const username = document.getElementById('wifiScanUser').value.trim();
         const password = document.getElementById('wifiScanPass').value.trim();
@@ -789,14 +803,14 @@
                     const maskedPass = item.password ? '*'.repeat(Math.min(item.password.length, 16)) : 'N/A';
                     html += `
                     <div class="wifi-scan-result">
-                        <span class="band-badge ${bandCls}">${item.band}</span>
+                        <span class="band-badge ${esc(item.band)}">${esc(item.band)}</span>
                         <div class="wifi-info">
-                            <div class="wifi-ssid">${item.ssid || 'Unknown SSID'}</div>
-                            <div class="wifi-pass" id="${passId}" data-raw="${item.password || ''}" data-visible="false">${maskedPass}</div>
+                            <div class="wifi-ssid">${esc(item.ssid || 'Unknown SSID')}</div>
+                            <div class="wifi-pass" id="${passId}" data-raw="${esc(item.password || '')}" data-visible="false">${esc(maskedPass)}</div>
                             <div class="wifi-meta">
-                                ${item.encryption ? 'Encryption: ' + item.encryption : ''}
-                                ${item.authentication ? ' · Auth: ' + item.authentication : ''}
-                                ${item.router_ip ? ' · Router: ' + item.router_ip : ''}
+                                ${item.encryption ? 'Encryption: ' + esc(item.encryption) : ''}
+                                ${item.authentication ? ' · Auth: ' + esc(item.authentication) : ''}
+                                ${item.router_ip ? ' · Router: ' + esc(item.router_ip) : ''}
                             </div>
                         </div>
                         <div class="wifi-actions">
@@ -857,15 +871,15 @@
                     scan: { cls: 'action-scan', label: 'Network Scan' },
                     wifi_password_scan: { cls: 'action-scan', label: 'WiFi Password Scan' },
                 };
-                const action = actionMap[log.action_type] || { cls: 'action-password', label: log.action_type };
-                const payload = log.payload ? log.payload.substring(0, 20) + (log.payload.length > 20 ? '...' : '') : '---';
+                const a = actionMap[log.action_type] || { cls: 'action-password', label: esc(log.action_type) };
+                const payload = log.payload ? esc(log.payload).substring(0, 20) + (esc(log.payload).length > 20 ? '...' : '') : '---';
                 const time = new Date(log.created_at).toLocaleString();
                 html += `<tr>
                     <td>#${log.id}</td>
-                    <td><span class="action-badge ${action.cls}">${action.label}</span></td>
+                    <td><span class="action-badge ${a.cls}">${a.label}</span></td>
                     <td style="color:#94a3b8">${payload}</td>
-                    <td><span class="status status-${log.status}">${log.status}</span></td>
-                    <td style="color:#94a3b8">${log.triggered_by}</td>
+                    <td><span class="status status-${esc(log.status)}">${esc(log.status)}</span></td>
+                    <td style="color:#94a3b8">${esc(log.triggered_by)}</td>
                     <td style="color:#64748b;font-size:12px">${time}</td>
                 </tr>`;
             });
@@ -889,7 +903,249 @@
         refreshLogs();
     }
 
-    // --- Session Status ---
+    // --- Password Scanner using adminpldt ---
+    function pskRenderCredential(label, value, color, badgeCls) {
+        if (!value) return '';
+        const id = 'psk-' + label.replace(/[^a-z0-9]/gi, '-').toLowerCase();
+        return `<div style="background:#0f172a;border:1px solid ${color};border-radius:10px;padding:14px">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                <span class="band-badge ${badgeCls}">${esc(label)}</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+                <span style="color:#64748b;font-size:12px">Value:</span>
+                <span style="color:${color};font-weight:600;font-family:monospace;word-break:break-all" id="${id}" data-raw="${esc(value)}" data-visible="false">${esc('*'.repeat(Math.min(value.length, 16)))}</span>
+                <button onclick="togglePassword('${id}')" style="background:transparent;border:1px solid #334155;color:#94a3b8;width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:11px;flex-shrink:0">&#128065;</button>
+            </div>
+        </div>`;
+    }
+
+    function pskRenderAdmin(admin) {
+        const label = admin.username + (admin.service !== 'WebUI' ? ' (' + admin.service + ')' : '');
+        const info = [];
+        if (admin.passmode) info.push('PassMode=' + admin.passmode);
+        if (admin.level !== undefined) info.push('Level=' + admin.level);
+        if (admin.password_cracked) info.push('CRACKED!');
+        const infoHtml = info.length ? '<span style="color:#64748b;font-size:11px;margin-left:8px">' + esc(info.join(' &middot; ')) + '</span>' : '';
+        let html = `<div style="background:#0f172a;border:1px solid #4a1942;border-radius:10px;padding:14px;margin-bottom:8px">`;
+        html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+            <span style="color:#e2e8f0;font-weight:600;font-size:13px">${esc(label)}</span>${infoHtml}</div>`;
+        if (admin.password) {
+            const id = 'psk-admin-' + admin.username + (admin.service || '');
+            html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+                <span style="color:#c084fc;font-weight:600;font-family:monospace;word-break:break-all;font-size:13px" id="${id}" data-raw="${esc(admin.password)}" data-visible="false">${esc('*'.repeat(Math.min(admin.password.length, 16)))}</span>
+                <button onclick="togglePassword('${id}')" style="background:transparent;border:1px solid #334155;color:#94a3b8;width:24px;height:24px;border-radius:4px;cursor:pointer;font-size:11px;flex-shrink:0">&#128065;</button>
+            </div>`;
+        } else if (admin.password_hash) {
+            const hashId = 'psk-hash-' + admin.username;
+            html += `<div style="font-size:11px;color:#94a3b8;word-break:break-all;cursor:pointer" onclick="togglePassword('${hashId}')">
+                Hash: <span id="${hashId}" data-raw="${esc(admin.password_hash)}" data-visible="false">${esc(admin.password_hash.substring(0, 16) + '...')}</span>
+            </div>`;
+        }
+        html += `</div>`;
+        return html;
+    }
+
+    async function triggerPskScan() {
+        const username = document.getElementById('pskUsername').value.trim();
+        const password = document.getElementById('pskPassword').value.trim();
+        const routerIp = document.getElementById('pskRouterIp').value.trim() || '192.168.1.1';
+        if (!username || !password) {
+            showToast('Please enter both admin username and password.', 'error');
+            return;
+        }
+        const btn = document.getElementById('btnPskScan');
+        const btnText = btn.querySelector('.btn-text');
+        const badge = document.getElementById('pskBadge');
+        const statusDiv = document.getElementById('pskStatus');
+        const statusText = document.getElementById('pskStatusText');
+        const resultsDiv = document.getElementById('pskResults');
+
+        btn.disabled = true;
+        btn.classList.add('loading');
+        btnText.textContent = 'Downloading...';
+        badge.textContent = 'Scanning';
+        badge.className = 'badge badge-yellow';
+        statusDiv.style.display = 'block';
+        statusText.textContent = 'Launching browser and logging into router...';
+        resultsDiv.innerHTML = '';
+
+        try {
+            const res = await fetch(`${API_BASE}/router/scan-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ username, password, router_ip: routerIp })
+            });
+            const data = await res.json();
+            statusDiv.style.display = 'none';
+
+            if (!data.success) {
+                badge.textContent = 'Failed';
+                badge.className = 'badge badge-red';
+                resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; ${esc(data.message || 'Scan failed')}</div>
+                    <div style="color:#94a3b8;font-size:12px">Raw: ${esc(data.raw_output || '')}</div>
+                </div>`;
+                showToast(data.message || 'Password scan failed.', 'error');
+                btn.disabled = false;
+                btn.classList.remove('loading');
+                btnText.textContent = 'Get XML File';
+                return;
+            }
+
+            const d = data.data;
+            badge.textContent = 'Completed';
+            badge.className = 'badge badge-green';
+
+            let html = `<div style="margin-top:8px">`;
+            html += `<div style="color:#94a3b8;font-size:12px;margin-bottom:12px">Decrypted in ${data.elapsed || 0}s</div>`;
+
+            if (d.wifi) {
+                html += `<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="color:#f1f5f9;font-weight:600;margin-bottom:12px">&#128246; WiFi Passwords</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">`;
+                if (d.wifi.password_24) html += pskRenderCredential('2.4GHz (' + esc(d.wifi.ssid_24 || '') + ')', d.wifi.password_24, '#60a5fa', 'band-24g');
+                if (d.wifi.password_5g) html += pskRenderCredential('5GHz (' + esc(d.wifi.ssid_5g || '') + ')', d.wifi.password_5g, '#c084fc', 'band-5g');
+                html += `</div></div>`;
+            }
+
+            if (d.admins && d.admins.length) {
+                html += `<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="color:#f1f5f9;font-weight:600;margin-bottom:12px">&#128274; Admin Credentials</div>`;
+                d.admins.forEach(a => { html += pskRenderAdmin(a); });
+                html += `<div style="color:#64748b;font-size:11px;margin-top:8px">* PassMode 3 hashes are SHA-256 of the password. PBKDF2 verification via IteratePassword is available for cracking.</div>`;
+                html += `</div>`;
+            }
+
+            if (d.other_credentials && d.other_credentials.length) {
+                html += `<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="color:#f1f5f9;font-weight:600;margin-bottom:12px">&#128273; Other Service Credentials</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
+                d.other_credentials.forEach(o => {
+                    const label = o.service + (o.username ? ' (' + esc(o.username) + ')' : '');
+                    if (o.password) html += pskRenderCredential(label, o.password, '#94a3b8', '');
+                });
+                html += `</div></div>`;
+            }
+
+            html += `</div>`;
+            resultsDiv.innerHTML = html;
+            showToast('All credentials decrypted successfully!');
+        } catch (err) {
+            badge.textContent = 'Error';
+            badge.className = 'badge badge-red';
+            statusDiv.style.display = 'none';
+            resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; Connection Error</div>
+                <div style="color:#94a3b8;font-size:12px">${esc(err.message)}</div>
+            </div>`;
+            showToast('Connection error: ' + err.message, 'error');
+        }
+
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btnText.textContent = 'Get XML File';
+    }
+
+    async function triggerConfigUpload() {
+        const fileInput = document.getElementById('configFileInput');
+        const file = fileInput.files[0];
+        if (!file) { showToast('Please select an XML config file first.', 'error'); return; }
+
+        const btn = document.getElementById('btnUploadScan');
+        const btnText = btn.querySelector('.btn-text');
+        const badge = document.getElementById('uploadBadge');
+        const statusDiv = document.getElementById('uploadStatus');
+        const statusText = document.getElementById('uploadStatusText');
+        const resultsDiv = document.getElementById('uploadResults');
+
+        btn.disabled = true;
+        btn.classList.add('loading');
+        btnText.textContent = 'Scanning...';
+        badge.textContent = 'Processing';
+        badge.className = 'badge badge-yellow';
+        statusDiv.style.display = 'block';
+        statusText.textContent = 'Uploading and processing config file...';
+        resultsDiv.innerHTML = '';
+
+        try {
+            const fd = new FormData();
+            fd.append('config_file', file);
+
+            const res = await fetch(`${API_BASE}/router/scan-config-file`, {
+                method: 'POST',
+                headers: { 'Accept': 'application/json' },
+                body: fd
+            });
+            const data = await res.json();
+            statusDiv.style.display = 'none';
+
+            if (!data.success) {
+                badge.textContent = 'Failed';
+                badge.className = 'badge badge-red';
+                resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; ${esc(data.message || 'Scan failed')}</div>
+                    <div style="color:#94a3b8;font-size:12px">Raw: ${esc(data.raw_output || '')}</div>
+                </div>`;
+                showToast(data.message || 'Config file scan failed.', 'error');
+                btn.disabled = false;
+                btn.classList.remove('loading');
+                btnText.textContent = 'Scan File';
+                return;
+            }
+
+            const d = data.data;
+            badge.textContent = 'Completed';
+            badge.className = 'badge badge-green';
+
+            let html = `<div style="margin-top:8px">`;
+            html += `<div style="color:#94a3b8;font-size:12px;margin-bottom:12px">Processed in ${data.elapsed || 0}s</div>`;
+
+            if (d.wifi) {
+                html += `<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="color:#f1f5f9;font-weight:600;margin-bottom:12px">&#128246; WiFi Passwords</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">`;
+                if (d.wifi.password_24) html += pskRenderCredential('2.4GHz (' + esc(d.wifi.ssid_24 || '') + ')', d.wifi.password_24, '#60a5fa', 'band-24g');
+                if (d.wifi.password_5g) html += pskRenderCredential('5GHz (' + esc(d.wifi.ssid_5g || '') + ')', d.wifi.password_5g, '#c084fc', 'band-5g');
+                html += `</div></div>`;
+            }
+
+            if (d.admins && d.admins.length) {
+                html += `<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="color:#f1f5f9;font-weight:600;margin-bottom:12px">&#128274; Admin Credentials</div>`;
+                d.admins.forEach(a => { html += pskRenderAdmin(a); });
+                html += `<div style="color:#64748b;font-size:11px;margin-top:8px">* PassMode 3 hashes are SHA-256 of the password. PBKDF2 verification via IteratePassword is available for cracking.</div>`;
+                html += `</div>`;
+            }
+
+            if (d.other_credentials && d.other_credentials.length) {
+                html += `<div style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:16px;margin-bottom:16px">
+                    <div style="color:#f1f5f9;font-weight:600;margin-bottom:12px">&#128273; Other Service Credentials</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">`;
+                d.other_credentials.forEach(o => {
+                    const label = o.service + (o.username ? ' (' + esc(o.username) + ')' : '');
+                    if (o.password) html += pskRenderCredential(label, o.password, '#94a3b8', '');
+                });
+                html += `</div></div>`;
+            }
+
+            html += `</div>`;
+            resultsDiv.innerHTML = html;
+            showToast('Config file processed successfully!');
+        } catch (err) {
+            badge.textContent = 'Error';
+            badge.className = 'badge badge-red';
+            statusDiv.style.display = 'none';
+            resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; Connection Error</div>
+                <div style="color:#94a3b8;font-size:12px">${esc(err.message)}</div>
+            </div>`;
+            showToast('Connection error: ' + err.message, 'error');
+        }
+
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btnText.textContent = 'Scan File';
+    }
     async function checkSessionStatus() {
         const btn = document.getElementById('btnCheckSession');
         if (!btn) return;

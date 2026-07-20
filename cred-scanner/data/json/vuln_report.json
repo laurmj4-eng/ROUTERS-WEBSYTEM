@@ -1,0 +1,16 @@
+{
+  "router": "https://192.168.1.1",
+  "time": "2026-07-17T20:17:43.159226",
+  "findings": [
+    {
+      "category": "HEADERS",
+      "severity": "low",
+      "detail": "X-Frame-Options: SAMEORIGIN (good)"
+    },
+    {
+      "category": "HEADERS",
+      "severity": "medium",
+      "detail": "CSP allows unsafe-inline/eval: default-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    }
+  ]
+}
