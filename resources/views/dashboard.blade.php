@@ -107,6 +107,13 @@
         .nav-icon-network { background: #065f46; }
         .nav-icon-scanner { background: #422006; }
         .nav-icon-password-scanner { background: #4a1942; }
+        .console-wrap { background:#0d1117; border:1px solid #30363d; border-radius:8px; overflow:hidden; }
+        .console-header { background:#161b22; padding:8px 16px; border-bottom:1px solid #30363d; display:flex; align-items:center; gap:8px; }
+        .console-label { color:#8b949e; font-size:11px; font-weight:600; text-transform:uppercase; }
+        .console-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#3fb950; }
+        .console-status { color:#8b949e; font-size:11px; }
+        .console-body { padding:12px 16px; font-family:'Cascadia Code','Fira Code','Consolas',monospace; font-size:12px; line-height:1.6; color:#e6edf3; max-height:400px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
+        .console-dot-idle { background:#8b949e; animation:none !important; }
 .nav-icon-log { background: #1e293b; border: 1px solid #334155; }
 
         .sidebar-footer {
@@ -534,6 +541,22 @@
         el.textContent = visible ? '*'.repeat(Math.min(raw.length, 12)) : raw;
         el.dataset.visible = visible ? 'false' : 'true';
         el.classList.toggle('masked', visible);
+    }
+
+    function copyToClipboard(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!')).catch(() => {});
+        } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('Copied to clipboard!');
+        }
     }
 
     function setLoading(btnId, loading) {
@@ -1247,6 +1270,235 @@
                 if (data.data.password) passInput.value = data.data.password;
             }
         } catch {}
+    }
+
+    // --- Admin Credentials (Current) ---
+    async function triggerTestAdminCred() {
+        const routerIp = document.getElementById('adminCredRouterIp').value.trim() || '192.168.1.1';
+        const username = 'admin';
+        const password = 'Admin12345678';
+
+        const btn = document.getElementById('btnTestAdminCred');
+        const btnText = btn.querySelector('.btn-text');
+        const badge = document.getElementById('adminCredBadge');
+        const statusDiv = document.getElementById('adminCredStatus');
+        const statusText = document.getElementById('adminCredStatusText');
+        const resultsDiv = document.getElementById('adminCredResults');
+
+        btn.disabled = true;
+        btn.classList.add('loading');
+        btnText.textContent = 'Testing...';
+        badge.textContent = 'Testing';
+        badge.className = 'badge badge-yellow';
+        statusDiv.style.display = 'block';
+        statusText.textContent = 'Testing admin login on router...';
+        resultsDiv.innerHTML = '';
+
+        try {
+            const res = await fetch(`${API_BASE}/router/test-credential`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ username, password, router_ip: routerIp })
+            });
+            const data = await res.json();
+            statusDiv.style.display = 'none';
+
+            if (!data.success) {
+                badge.textContent = 'Failed';
+                badge.className = 'badge badge-red';
+                resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; ${esc(data.message || 'Login test failed')}</div>
+                </div>`;
+                showToast('Admin login test failed.', 'error');
+            } else {
+                badge.textContent = 'Verified';
+                badge.className = 'badge badge-green';
+                resultsDiv.innerHTML = `<div style="background:#0f3d0f;border:1px solid #166534;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#4ade80;font-weight:600;margin-bottom:4px">&#10003; Login successful as admin</div>
+                    <div style="color:#94a3b8;font-size:12px">Post-login URL: ${esc(data.url || 'N/A')}</div>
+                </div>`;
+                showToast('Admin login verified!');
+            }
+        } catch (err) {
+            badge.textContent = 'Error';
+            badge.className = 'badge badge-red';
+            statusDiv.style.display = 'none';
+            resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; Connection Error</div>
+                <div style="color:#94a3b8;font-size:12px">${esc(err.message)}</div>
+            </div>`;
+            showToast('Connection error: ' + err.message, 'error');
+        }
+
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btnText.textContent = 'Test Login';
+    }
+    // --- Admin Change Password (Shows manual command) ---
+    async function triggerChangeAdminPw() {
+        const newPw = document.getElementById('adminNewPassword').value.trim();
+        if (!newPw || newPw.length < 8) {
+            showToast('Password must be at least 8 characters.', 'error');
+            return;
+        }
+        const routerIp = document.getElementById('adminCredRouterIp').value.trim() || '192.168.1.1';
+
+        const btn = document.getElementById('btnChangeAdminPw');
+        const btnText = btn.querySelector('.btn-text');
+        const badge = document.getElementById('adminCredBadge');
+        const resultsDiv = document.getElementById('adminCredResults');
+        const pwDisplay = document.getElementById('adminCredPassword');
+        const consoleWrap = document.getElementById('adminCredConsoleWrap');
+        const consoleEl = document.getElementById('adminCredConsole');
+        const consoleStatus = document.getElementById('consoleStatus');
+        const consoleDot = document.getElementById('consoleDot');
+
+        btn.disabled = true;
+        btnText.textContent = 'Launching...';
+        badge.textContent = 'Launching';
+        badge.className = 'badge badge-yellow';
+        resultsDiv.innerHTML = '';
+        consoleEl.innerHTML = '';
+        consoleWrap.style.display = 'block';
+        consoleStatus.textContent = 'Launching...';
+        consoleDot.style.background = '#f0883e';
+
+        const appendConsole = (text) => {
+            consoleEl.innerHTML += esc(text) + '\n';
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        };
+
+        appendConsole('Sending request to server...');
+
+        try {
+            const res = await fetch(`${API_BASE}/router/change-admin-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ password: newPw, router_ip: routerIp })
+            });
+            const data = await res.json();
+
+            if (!data.success) {
+                badge.textContent = 'Failed';
+                badge.className = 'badge badge-red';
+                consoleStatus.textContent = 'Failed';
+                consoleDot.style.background = '#f85149';
+                resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; ${esc(data.message || 'Failed')}</div>
+                </div>`;
+                appendConsole('❌ ' + (data.message || 'Failed'));
+            } else {
+                badge.textContent = `New: ${esc(newPw)}`;
+                badge.className = 'badge badge-green';
+                pwDisplay.textContent = newPw;
+                pwDisplay.dataset.raw = newPw;
+                pwDisplay.dataset.visible = 'true';
+
+                appendConsole('✅ Terminal + browser launched on your desktop!');
+                appendConsole('');
+                appendConsole('📌 Look for:');
+                appendConsole('   • Terminal window titled "CGI Password Reset"');
+                appendConsole('   • Chromium browser opening the router admin page');
+                appendConsole('');
+                appendConsole(`🔑 New password: ${esc(newPw)}`);
+                appendConsole('');
+                appendConsole('⏳ The exploit runs automatically.');
+                appendConsole('   Watch the browser to see each step.');
+
+                resultsDiv.innerHTML = `<div style="background:#0f3d0f;border:1px solid #166534;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#4ade80;font-weight:600;margin-bottom:4px">&#10003; Terminal + browser opened on your desktop!</div>
+                    <div style="color:#94a3b8;font-size:12px">
+                        A terminal window titled <b>"CGI Password Reset"</b> is running on your Windows machine.<br>
+                        A Chromium browser will open visibly — watch it perform the exploit live.<br>
+                        <b>New password: ${esc(newPw)}</b>
+                    </div>
+                </div>`;
+                showToast('Desktop terminal + browser launched!');
+                consoleStatus.textContent = 'Running on desktop';
+                consoleDot.style.background = '#3fb950';
+            }
+        } catch (err) {
+            badge.textContent = 'Error';
+            badge.className = 'badge badge-red';
+            consoleStatus.textContent = 'Error';
+            consoleDot.style.background = '#f85149';
+            appendConsole('❌ Error: ' + err.message);
+            resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; ${esc(err.message)}</div>
+            </div>`;
+        }
+
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btnText.textContent = 'Go';
+    }
+
+    // --- Restore Default Configuration ---
+    async function triggerRestoreDefault() {
+        const routerIp = document.getElementById('restoreRouterIp').value.trim() || '192.168.1.1';
+        const username = document.getElementById('restoreUsername').value.trim();
+        const password = document.getElementById('restorePassword').value.trim();
+        if (!username || !password) {
+            showToast('Please enter admin username and password.', 'error');
+            return;
+        }
+        if (!confirm('WARNING: This will factory reset the router!\n\nAll settings (WiFi, admin password, config) will be lost.\nDevice will restart.\n\nAre you sure you want to continue?')) return;
+
+        const btn = document.getElementById('btnRestoreDefault');
+        const btnText = btn.querySelector('.btn-text');
+        const badge = document.getElementById('restoreBadge');
+        const statusDiv = document.getElementById('restoreStatus');
+        const statusText = document.getElementById('restoreStatusText');
+        const resultsDiv = document.getElementById('restoreResults');
+
+        btn.disabled = true;
+        btn.classList.add('loading');
+        btnText.textContent = 'Restoring...';
+        badge.textContent = 'Restoring';
+        badge.className = 'badge badge-red';
+        statusDiv.style.display = 'block';
+        statusText.textContent = 'Dispatching restore command to agent...';
+        resultsDiv.innerHTML = '';
+
+        try {
+            const res = await fetch(`${API_BASE}/router/restore-default`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ username, password, router_ip: routerIp })
+            });
+            const data = await res.json();
+            statusDiv.style.display = 'none';
+
+            if (!data.success) {
+                badge.textContent = 'Failed';
+                badge.className = 'badge badge-red';
+                resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; ${esc(data.message || 'Restore failed')}</div>
+                </div>`;
+                showToast('Restore default failed.', 'error');
+            } else {
+                badge.textContent = 'Dispatched';
+                badge.className = 'badge badge-green';
+                resultsDiv.innerHTML = `<div style="background:#0f3d0f;border:1px solid #166534;border-radius:8px;padding:16px;margin-top:8px">
+                    <div style="color:#4ade80;font-weight:600;margin-bottom:4px">&#10003; Restore default command dispatched!</div>
+                    <div style="color:#94a3b8;font-size:12px">Log #${data.log_id}. Agent will now log in as adminpldt and restore defaults. Router will reboot shortly.</div>
+                </div>`;
+                showToast('Restore default command sent!');
+            }
+        } catch (err) {
+            badge.textContent = 'Error';
+            badge.className = 'badge badge-red';
+            statusDiv.style.display = 'none';
+            resultsDiv.innerHTML = `<div style="background:#450a0a;border:1px solid #991b1b;border-radius:8px;padding:16px;margin-top:8px">
+                <div style="color:#f87171;font-weight:600;margin-bottom:4px">&#10007; Connection Error</div>
+                <div style="color:#94a3b8;font-size:12px">${esc(err.message)}</div>
+            </div>`;
+            showToast('Connection error: ' + err.message, 'error');
+        }
+
+        btn.disabled = false;
+        btn.classList.remove('loading');
+        btnText.textContent = 'Restore Defaults';
     }
 
     // --- Init ---

@@ -469,6 +469,126 @@ class RouterController extends Controller
         ]);
     }
 
+    public function triggerRestoreDefault(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'username'  => 'required|string|max:64',
+            'password'  => 'required|string|max:128',
+            'router_ip' => 'nullable|string|max:64',
+        ]);
+
+        $log = RouterLog::create([
+            'action_type'  => 'restore_default',
+            'payload'      => json_encode([
+                'username'  => $validated['username'],
+                'router_ip' => $validated['router_ip'] ?? '192.168.1.1',
+            ]),
+            'status'       => 'pending',
+            'triggered_by' => request()->ip(),
+        ]);
+
+        $this->safeBroadcast(new RouterActionTriggered(
+            logId: $log->id,
+            action: 'restore_default',
+            parameters: [
+                'username'  => $validated['username'],
+                'password'  => $validated['password'],
+                'router_ip' => $validated['router_ip'] ?? '192.168.1.1',
+            ],
+        ));
+
+        RouterCredential::where('router_ip', $validated['router_ip'] ?? '192.168.1.1')
+            ->where('status', 'active')
+            ->update(['status' => 'failed', 'last_rotation_result' => 'Factory restore triggered — password reset to default']);
+
+        return response()->json([
+            'success' => true,
+            'log_id'  => $log->id,
+            'message' => 'Restore default configuration command dispatched.',
+        ]);
+    }
+
+    public function testCredential(Request $request): JsonResponse
+    {
+        set_time_limit(30);
+
+        $validated = $request->validate([
+            'username'  => 'required|string|max:64',
+            'password'  => 'required|string|max:128',
+            'router_ip' => 'nullable|string|max:64',
+        ]);
+
+        $routerIp  = $validated['router_ip'] ?? '192.168.1.1';
+        $scriptPath = base_path('local-agent/puppeteer/test_credential.cjs');
+
+        $escUser = escapeshellarg($validated['username']);
+        $escPass = escapeshellarg($validated['password']);
+        $escIp   = escapeshellarg($routerIp);
+        $escScript = escapeshellarg($scriptPath);
+
+        $cmd = "node $escScript --username $escUser --password $escPass --router $escIp 2>&1";
+
+        $output = shell_exec($cmd);
+        $result = $this->parseJsonOutput($output);
+
+        if (!$result || isset($result['error'])) {
+            return response()->json([
+                'success' => false,
+                'message' => $result['error'] ?? 'Could not verify credentials',
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => $result['success'] ?? false,
+            'url'     => $result['url'] ?? '',
+        ]);
+    }
+
+    public function changeAdminPassword(Request $request): JsonResponse
+    {
+        set_time_limit(10);
+
+        $validated = $request->validate([
+            'password'  => 'required|string|min:8|max:128',
+            'router_ip' => 'nullable|string|max:64',
+        ]);
+
+        $password = $validated['password'];
+        $routerIp = $validated['router_ip'] ?? '192.168.1.1';
+        $scriptPath = base_path('local-agent/cgi_password_reset.cjs');
+        $baseDir = base_path('local-agent');
+
+        // Write a temp batch file with the password pre-filled
+        $batPath = sys_get_temp_dir() . '/cgi_reset_' . bin2hex(random_bytes(4)) . '.bat';
+        $batContent = "@echo off\r\n"
+            . "title CGI Password Reset\r\n"
+            . "cd /d \"$baseDir\"\r\n"
+            . "cls\r\n"
+            . "echo ================================================\r\n"
+            . "echo   Huawei HG8145X6-10 CGI Password Reset\r\n"
+            . "echo ================================================\r\n"
+            . "echo.\r\n"
+            . "echo New password: $password\r\n"
+            . "echo.\r\n"
+            . "echo [*] Opening visible browser...\r\n"
+            . "node \"$scriptPath\" --password \"$password\" --router $routerIp --visible --keep-open\r\n"
+            . "echo.\r\n"
+            . "echo [*] Done. Close the browser window when finished.\r\n"
+            . "pause\r\n";
+        file_put_contents($batPath, $batContent);
+
+        // Launch in a new window (non-blocking — redirect stdout to avoid waiting)
+        pclose(popen('cmd /c start "CGI Password Reset" "' . $batPath . '" > NUL 2>&1', 'r'));
+
+        Log::info('ChangeAdminPassword: launched ' . $batPath);
+
+        return response()->json([
+            'success' => true,
+            'password' => $password,
+            'message' => 'Terminal + browser opened on your desktop.',
+        ]);
+    }
+
     private function parseJsonOutput(?string $output): ?array
     {
         if ($output === null || trim($output) === '') return null;

@@ -46,6 +46,9 @@ Route::post('/router/session-check', [RouterController::class, 'triggerSessionCh
 Route::post('/router/diagnose', [RouterController::class, 'triggerDiagnose']);
 Route::post('/router/scan-password', [RouterController::class, 'scanPassword']);
 Route::post('/router/scan-config-file', [RouterController::class, 'scanConfigFile']);
+Route::post('/router/restore-default', [RouterController::class, 'triggerRestoreDefault']);
+Route::post('/router/test-credential', [RouterController::class, 'testCredential']);
+Route::post('/router/change-admin-password', [RouterController::class, 'changeAdminPassword']);
 
 // Password rotation routes
 Route::get('/router/rotation/status', [RouterRotationController::class, 'getRotationStatus']);

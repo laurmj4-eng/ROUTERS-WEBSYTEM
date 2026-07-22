@@ -1224,10 +1224,120 @@ async function executeWifiBruteForce(opts = {}) {
   return result;
 }
 
+async function executeRestoreDefaults(page) {
+  const baseUrl = ROUTER_URL();
+  console.log('[automation] Starting factory restore...');
+
+  const path = 'html/ssmp/restore/restore.asp';
+
+  try {
+    const frame = await loadFrame(page, path);
+    if (!frame) throw new Error('Could not load restore page');
+
+    await sleep(1500);
+
+    const btn = await frame.$('input#btnRestoreDftCfg');
+
+    if (btn) {
+      console.log(`[automation] Found restore default button (id=btnRestoreDftCfg)`);
+
+      page.once('dialog', (dialog) => {
+        console.log(`[automation] Dialog: ${dialog.message()}`);
+        dialog.accept();
+      });
+
+      await btn.click();
+      console.log('[automation] Restore default button clicked, waiting for confirmation dialog...');
+      await sleep(3000);
+
+      console.log('[automation] Restore default command sent successfully');
+    } else {
+      console.log('[automation] Restore default button not found, dumping page for debug...');
+      const fs = require('fs');
+      fs.writeFileSync('iframe-restore-debug.html', await frame.content());
+      throw new Error('Could not find restore default button (input#btnRestoreDftCfg)');
+    }
+  } catch (err) {
+    console.log(`[automation] Restore failed: ${err.message}`);
+    try {
+      const frame = await loadFrame(page, path);
+      if (frame) {
+        const fs = require('fs');
+        fs.writeFileSync('iframe-restore-debug.html', await frame.content());
+      }
+    } catch (_) {}
+    throw err;
+  }
+}
+
+/**
+ * Fast combined login (adminpldt via admin.html) + restore default.
+ * No isLoggedIn check, no unnecessary waits — same speed as the standalone test script.
+ */
+async function adminpldtLoginAndRestore(page, username, password) {
+  const baseUrl = ROUTER_URL();
+  console.log('[restore] Logging in as adminpldt via admin.html...');
+
+  // Navigate to admin.html
+  await page.goto(`${baseUrl}/admin.html`, { waitUntil: 'domcontentloaded', timeout: 15000, ignoreHTTPSErrors: true });
+  await new Promise(r => setTimeout(r, 1500));
+
+  // Inject bypasses
+  await page.evaluate(() => {
+    window.CheckPassword = () => 0;
+    window.setDisable = () => {};
+    window.Userlevel = 0;
+    window.preflag = 0;
+    window.DisplayWifiPldt = () => {};
+    window.BandSteeringState = () => {};
+    window.LockLeftTime = 0;
+    window.FailStat = '0';
+    window.LoginTimes = 0;
+  });
+
+  // Type credentials
+  await page.type('input#txt_Username', username, { delay: 10 });
+  await page.evaluate(() => { const p = document.querySelector('input#txt_Password'); if (p) p.type = 'text'; });
+  await page.type('input#txt_Password', password, { delay: 10 });
+
+  // Click login
+  await page.click('button#button');
+  await new Promise(r => setTimeout(r, 3000));
+
+  // Dismiss overlay if present
+  await page.evaluate(() => {
+    const ov = document.querySelector('div#pwd_modify');
+    if (ov && ov.style.display !== 'none') {
+      ov.style.display = 'none';
+      console.log('[restore] Dismissed password change overlay');
+    }
+  }).catch(() => {});
+
+  console.log('[restore] Login done, navigating to restore page...');
+
+  // Navigate to restore page
+  await page.goto(`${baseUrl}/html/ssmp/restore/restore.asp`, { waitUntil: 'domcontentloaded', timeout: 10000, ignoreHTTPSErrors: true });
+  await new Promise(r => setTimeout(r, 1000));
+
+  // Click Default button
+  const btn = await page.$('input#btnRestoreDftCfg');
+  if (btn) {
+    console.log('[restore] Found Default button, clicking...');
+    page.once('dialog', (dialog) => { console.log(`[restore] Dialog: ${dialog.message()}`); dialog.accept(); });
+    await btn.click();
+    await new Promise(r => setTimeout(r, 2000));
+    console.log('[restore] Restore default command sent!');
+  } else {
+    throw new Error('Could not find restore default button (input#btnRestoreDftCfg)');
+  }
+}
+
 module.exports = {
   loginRouter,
   isLoggedIn,
   executeRouterReboot,
+  executeRestoreDefaults,
+  adminpldtLoginAndRestore,
   executePasswordChange,
   executePasswordChangeViaOverlay,
   executeAdminPasswordChange,

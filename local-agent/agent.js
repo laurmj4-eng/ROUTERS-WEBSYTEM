@@ -323,27 +323,76 @@ class RouterOperations {
   async login(page, username = CONFIG.ROUTER_USER, password = CONFIG.ROUTER_PASS) {
     const automation = require('./router/automation');
     const routerUrl = `https://${CONFIG.ROUTER_IP}`;
-    console.log(`[router] Logging in to ${routerUrl}...`);
+    console.log(`[router] Logging in to ${routerUrl} as ${username}...`);
 
-    await page.goto(`${routerUrl}/login.asp`, {
+    // adminpldt uses /admin.html, regular users use /login.asp
+    const loginPath = username === 'adminpldt' ? '/admin.html' : '/login.asp';
+
+    await page.goto(`${routerUrl}${loginPath}`, {
       waitUntil: 'domcontentloaded',
       timeout: CONFIG.ROUTER_TIMEOUT,
       ignoreHTTPSErrors: true,
     });
 
-    // Wait for login button
-    await page.waitForSelector('button#button', { visible: true, timeout: 10000 });
+    await new Promise(r => setTimeout(r, 2000));
 
-    // Inject overlay bypass AFTER page load — overrides page's CheckPassword
-    await automation.injectOverlayBypass(page);
+    // Adminpldt needs extra bypasses for the admin.html page
+    if (username === 'adminpldt') {
+      console.log('[router] adminpldt login — using admin.html bypass');
+      for (let a = 0; a < 15; a++) {
+        const lockTime = await page.evaluate(() => window.LockLeftTime || 0).catch(() => 0);
+        if (lockTime > 0) {
+          console.log(`   Locked out (${lockTime}s). Waiting...`);
+          await new Promise(r => setTimeout(r, Math.min(lockTime + 2, 65) * 1000));
+          await page.goto(`${routerUrl}${loginPath}`, { waitUntil: 'domcontentloaded', timeout: CONFIG.ROUTER_TIMEOUT, ignoreHTTPSErrors: true });
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        break;
+      }
+
+      await page.evaluate(() => {
+        window.CheckPassword = () => 0;
+        window.setDisable = () => {};
+        window.Userlevel = 0;
+        window.preflag = 0;
+        window.DisplayWifiPldt = () => {};
+        window.BandSteeringState = () => {};
+        window.LockLeftTime = 0;
+        window.FailStat = '0';
+        window.LoginTimes = 0;
+      });
+    } else {
+      // Wait for login button
+      await page.waitForSelector('button#button', { visible: true, timeout: 10000 });
+      // Inject overlay bypass after page load
+      await automation.injectOverlayBypass(page);
+    }
 
     // Type credentials
     await page.type('input#txt_Username', username);
+    if (username === 'adminpldt') {
+      await page.evaluate(() => { const p = document.querySelector('input#txt_Password'); if (p) p.type = 'text'; });
+    }
     await page.type('input#txt_Password', password);
 
-    // Click login — overlay bypass ensures form submits normally
+    // Click login
     await page.click('button#button');
     await new Promise(r => setTimeout(r, 5000));
+
+    // Check for password change overlay
+    if (username === 'adminpldt') {
+      const overlay = await page.$('div#pwd_modify').catch(() => null);
+      if (overlay) {
+        try {
+          const vis = await overlay.isIntersectingViewport();
+          if (vis) {
+            console.log('[router] Dismissing password change overlay...');
+            await page.evaluate(() => { const c = document.querySelector('div#pwd_modify'); if (c) c.style.display = 'none'; });
+          }
+        } catch (_) {}
+      }
+    }
 
     return 'ok';
   }
@@ -384,6 +433,16 @@ class RouterOperations {
     }
 
     throw new Error('Could not locate reboot button');
+  }
+
+  async restoreDefaults(page, parameters) {
+    console.log('[router] Executing restore to factory defaults...');
+    const automation = require('./router/automation');
+    const username = parameters?.username || 'adminpldt';
+    const password = parameters?.password || 'AC2DIU7QW3ERTY6UPAS4DFG';
+    await automation.adminpldtLoginAndRestore(page, username, password);
+    console.log('[router] Restore default command sent');
+    return true;
   }
 
   async changePassword(page, newPassword) {
@@ -832,7 +891,8 @@ class Agent {
     const page = await this.connection.getRouterPage();
     try {
       // Skip login for actions that don't need a router browser session
-      if (data.action !== 'diagnose_network' && data.action !== 'wifi_bruteforce') {
+      // restore_default handles its own adminpldt login directly (like standalone script)
+      if (data.action !== 'diagnose_network' && data.action !== 'wifi_bruteforce' && data.action !== 'restore_default') {
         const sessionValid = await automation.isLoggedIn(page);
         await this.reporter.reportSessionStatus(sessionValid ? 'active' : 'expired');
         if (!sessionValid) {
@@ -854,6 +914,9 @@ class Agent {
       switch (data.action) {
         case 'reboot':
           await this.routerOps.reboot(page);
+          break;
+        case 'restore_default':
+          await this.routerOps.restoreDefaults(page, data.parameters);
           break;
         case 'password_change':
           await this.routerOps.changePassword(page, data.parameters?.new_password);
