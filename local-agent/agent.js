@@ -25,6 +25,7 @@ const puppeteer = require('puppeteer');
 const { Pusher } = require('pusher-js');
 const fs = require('fs');
 const path = require('path');
+const lpb = require('./router/lpb-automation');
 
 // ============================================================
 // Configuration
@@ -40,6 +41,7 @@ const CONFIG = {
   ROUTER_IP: process.env.ROUTER_IP || '192.168.1.1',
   ROUTER_USER: process.env.ROUTER_USER || 'admin',
   ROUTER_PASS: process.env.ROUTER_PASS || 'Admin1234',
+  SKIP_ROUTER_CONNECT: process.env.SKIP_ROUTER_CONNECT === 'true',
 
   // Laravel API
   LARAVEL_API_URL: process.env.LARAVEL_API_URL || 'http://localhost:8000/api',
@@ -209,6 +211,7 @@ class ConnectionManager {
     this.channel = null;
     this.browser = null;
     this.routerPage = null;
+    this.lpbPage = null;
     this.reconnectAttempts = 0;
     this.reconnectDelay = CONFIG.RECONNECT_DELAY;
   }
@@ -268,9 +271,24 @@ class ConnectionManager {
       ],
     });
 
-    this.routerPage = await this.browser.newPage();
-    await this.routerPage.goto(`https://${CONFIG.ROUTER_IP}`, { waitUntil: 'domcontentloaded', timeout: 15000, ignoreHTTPSErrors: true }).catch(() => {});
-    console.log('[connection] Browser launched — navigated to router');
+    if (!CONFIG.SKIP_ROUTER_CONNECT) {
+      this.routerPage = await this.browser.newPage();
+      await this.routerPage.goto(`https://${CONFIG.ROUTER_IP}`, { waitUntil: 'domcontentloaded', timeout: 15000, ignoreHTTPSErrors: true }).catch(() => {});
+      console.log('[connection] Browser launched — navigated to router');
+    } else {
+      console.log('[connection] Browser launched — opening LPB portal...');
+      await this.connectToLpb();
+    }
+  }
+
+  async connectToLpb() {
+    try {
+      const page = await this.getLpbPage();
+      await lpb.openPortal(page);
+      console.log('[connection] LPB portal opened at ' + (process.env.LPB_URL || 'http://10.0.0.1'));
+    } catch (err) {
+      console.error('[connection] Could not open LPB portal on boot:', err.message);
+    }
   }
 
   async getRouterPage() {
@@ -278,6 +296,22 @@ class ConnectionManager {
       this.routerPage = await this.browser.newPage();
     }
     return this.routerPage;
+  }
+
+  async getLpbPage() {
+    if (!this.lpbPage || this.lpbPage.isClosed()) {
+      this.lpbPage = await this.browser.newPage();
+      this.lpbPage.setDefaultTimeout(30000);
+    }
+    return this.lpbPage;
+  }
+
+  async recycleLpbPage() {
+    if (this.lpbPage && !this.lpbPage.isClosed()) {
+      await this.lpbPage.close().catch(() => {});
+    }
+    this.lpbPage = null;
+    return this.getLpbPage();
   }
 
   scheduleReconnect() {
@@ -697,6 +731,27 @@ class StatusReporter {
     }
   }
 
+  async reportLpbState(logId, state) {
+    try {
+      await fetch(`${CONFIG.LARAVEL_API_URL}/lpb/report`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CONFIG.LARAVEL_API_TOKEN}`,
+        },
+        body: JSON.stringify({
+          log_id: logId,
+          remaining_seconds: state.remaining_seconds ?? null,
+          vouchers: state.vouchers || [],
+          success: state.success ?? true,
+        }),
+      });
+      console.log(`[report] LPB state reported (log #${logId})`);
+    } catch (err) {
+      console.error(`[report] Failed to report LPB state: ${err.message}`);
+    }
+  }
+
   async reportScanResults(logId, scanData) {
     try {
       await fetch(`${CONFIG.LARAVEL_API_URL}/router/scan/results`, {
@@ -884,6 +939,72 @@ class Agent {
         console.error('[agent] Rotation handler error:', err);
       });
     });
+
+    channel.bind('LpbActionRequested', (data) => {
+      console.log(`\n[agent] LPB action received: ${data.action} (log #${data.log_id})`);
+      this.handleLpbAction(data).catch(err => {
+        console.error('[agent] LPB handler error:', err);
+      });
+    });
+  }
+
+  async handleLpbAction(data) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const lpbPage = await this.connection.getLpbPage();
+
+        // Only open the portal if we're not already on the real page
+        const current = await lpb.getState(lpbPage).catch(() => null);
+        if (!current || (current.remaining_seconds == null && current.vouchers.length === 0)) {
+          await lpb.openPortal(lpbPage);
+        } else {
+          console.log('[agent] LPB portal already loaded — skipping open');
+        }
+
+        let result = { success: true };
+        switch (data.action) {
+          case 'connect':
+            result = await lpb.getState(lpbPage);
+            result.success = true;
+            break;
+          case 'add_time':
+            result = await lpb.addTime(lpbPage, data.parameters?.days || 500);
+            break;
+          case 'convert':
+            result = await lpb.convertToVouchers(
+              lpbPage,
+              data.parameters?.days || 7,
+              data.parameters?.count || 1
+            );
+            break;
+          default:
+            throw new Error(`Unknown LPB action: ${data.action}`);
+        }
+
+        // Report final state + vouchers back to Laravel
+        const state = await lpb.getState(lpbPage).catch(() => ({ remaining_seconds: null, vouchers: [] }));
+        await this.reporter.reportLpbState(data.log_id, {
+          ...state,
+          ...result,
+          success: true,
+        });
+        await this.reporter.report(data.log_id, 'success');
+        this.state.update({ operationsCompleted: this.state.get('operationsCompleted') + 1 });
+        console.log(`[agent] LPB action ${data.action} completed`);
+        return;
+      } catch (err) {
+        if (attempt === 0 && /Connection closed|target crashed|Execution context/i.test(err.message || '')) {
+          console.error(`[agent] LPB page broken (${err.message}) — retrying with fresh page`);
+          await this.connection.recycleLpbPage().catch(() => {});
+          continue;
+        }
+        console.error(`[agent] LPB action failed: ${err.message}`);
+        await this.reporter.reportLpbState(data.log_id, { success: false });
+        await this.reporter.report(data.log_id, 'failed');
+        this.state.update({ operationsFailed: this.state.get('operationsFailed') + 1 });
+        return;
+      }
+    }
   }
 
   async handleAction(data) {

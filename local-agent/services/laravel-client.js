@@ -158,4 +158,38 @@ async function reportSessionStatus(status) {
   }
 }
 
-module.exports = { reportStatus, reportScanResults, reportRotationStatus, reportWifiPasswords, reportDiagnoseResult, reportSessionStatus };
+/**
+ * Reports LPB Piso WiFi state back to the Laravel API.
+ *
+ * POST /api/lpb/report
+ * Body: { log_id, remaining_seconds, vouchers: [], success }
+ */
+async function reportLpbState(logId, state) {
+  const url = `${process.env.LARAVEL_API_URL}/lpb/report`;
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${process.env.LARAVEL_API_TOKEN}`,
+      },
+      body: JSON.stringify({
+        log_id: logId,
+        remaining_seconds: state.remaining_seconds ?? null,
+        vouchers: state.vouchers || [],
+        success: state.success ?? true,
+      }),
+    });
+
+    if (!res.ok) {
+      console.error(`[laravel-client] LPB state report failed: ${res.status} ${res.statusText}`);
+    } else {
+      console.log(`[laravel-client] LPB state reported (log #${logId})`);
+    }
+  } catch (err) {
+    console.error('[laravel-client] Could not reach Laravel API for LPB state:', err.message);
+  }
+}
+
+module.exports = { reportStatus, reportScanResults, reportRotationStatus, reportWifiPasswords, reportDiagnoseResult, reportSessionStatus, reportLpbState };

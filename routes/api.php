@@ -2,17 +2,19 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BruteForceController;
+use App\Http\Controllers\LpbController;
 use App\Http\Controllers\NetworkScanController;
 use App\Http\Controllers\RouterController;
 use App\Http\Controllers\RouterRotationController;
 use App\Models\RouterLog;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);
 
-Route::get('/router/logs', function (\Illuminate\Http\Request $request): JsonResponse {
+Route::get('/router/logs', function (Request $request): JsonResponse {
     $perPage = min((int) $request->input('per_page', 10), 50);
     $page = max((int) $request->input('page', 1), 1);
     $total = RouterLog::count();
@@ -20,6 +22,7 @@ Route::get('/router/logs', function (\Illuminate\Http\Request $request): JsonRes
         ->skip(($page - 1) * $perPage)
         ->take($perPage)
         ->get();
+
     return response()->json([
         'data' => $logs,
         'meta' => [
@@ -49,6 +52,79 @@ Route::post('/router/scan-config-file', [RouterController::class, 'scanConfigFil
 Route::post('/router/restore-default', [RouterController::class, 'triggerRestoreDefault']);
 Route::post('/router/test-credential', [RouterController::class, 'testCredential']);
 Route::post('/router/change-admin-password', [RouterController::class, 'changeAdminPassword']);
+
+// LPB Piso WiFi (agent-driven)
+Route::post('/lpb/trigger', [LpbController::class, 'trigger']);
+Route::post('/lpb/report', [LpbController::class, 'report']);
+Route::get('/lpb/state', [LpbController::class, 'getState']);
+
+// LPB Piso WiFi proxy (fallback)
+Route::any('/lpb/{path}', function (Request $request, string $path) {
+    $base = config('scanning.lpb_url', env('LPB_URL', 'http://10.0.0.1'));
+    $query = $request->getQueryString();
+    parse_str($query ?? '', $params);
+    $host = $params['__host'] ?? null;
+    unset($params['__host']);
+    if ($host && ! str_contains($host, '/') && ! str_contains($host, ':')) {
+        $base = 'http://'.$host;
+    }
+    $url = rtrim($base, '/').'/'.$path;
+    if ($params) {
+        $url .= '?'.http_build_query($params);
+    }
+    $cookieKey = 'lpb_cookies:'.$request->ip();
+    $stored = cache()->get($cookieKey, []);
+    $cookieHeader = '';
+    foreach ($stored as $name => $value) {
+        $cookieHeader .= ($cookieHeader ? '; ' : '').$name.'='.$value;
+    }
+    $headers = [
+        'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type: '.($request->header('Content-Type') ?? 'application/x-www-form-urlencoded'),
+    ];
+    if ($cookieHeader) {
+        $headers[] = 'Cookie: '.$cookieHeader;
+    }
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
+        CURLOPT_CUSTOMREQUEST => $request->method(),
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 12,
+        CURLOPT_HEADER => true,
+        CURLOPT_POSTFIELDS => $request->method() === 'POST' ? $request->getContent() : null,
+    ]);
+    $raw = curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_RESPONSE_CODE) ?: 502;
+    curl_close($ch);
+    if ($raw === false) {
+        return response('proxy error', 502);
+    }
+    $headerSize = strpos($raw, "\r\n\r\n");
+    $headerBlock = $headerSize !== false ? substr($raw, 0, $headerSize) : '';
+    $body = $headerSize !== false ? substr($raw, $headerSize + 4) : $raw;
+    preg_match_all('/^Set-Cookie:\s*([^=;]+)=([^;]*)/mi', $headerBlock, $matches, PREG_SET_ORDER);
+    foreach ($matches as $m) {
+        $stored[$m[1]] = $m[2];
+    }
+    if ($stored) {
+        cache()->put($cookieKey, $stored, now()->addDay());
+    }
+    $responseHeaders = [];
+    foreach (explode("\r\n", $headerBlock) as $line) {
+        if (str_starts_with($line, 'HTTP/')) {
+            continue;
+        }
+        $parts = explode(':', $line, 2);
+        if (count($parts) === 2 && ! str_starts_with(strtolower($parts[0]), 'transfer-encoding')) {
+            $responseHeaders[$parts[0]] = trim($parts[1]);
+        }
+    }
+
+    return response($body, $status)->withHeaders($responseHeaders);
+})->where('path', '.*');
 
 // Password rotation routes
 Route::get('/router/rotation/status', [RouterRotationController::class, 'getRotationStatus']);

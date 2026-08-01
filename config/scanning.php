@@ -22,8 +22,8 @@ return [
     ],
 
     'firmware' => [
-        'default_vendor' => 'huawei',
-        'default_product' => 'hg8145x6',
+        'default_vendor' => 'fiberhome',
+        'default_product' => 'an5506',
     ],
 
     'agent_url' => env('LOCAL_AGENT_URL'),

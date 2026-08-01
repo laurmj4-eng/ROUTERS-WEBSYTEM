@@ -115,6 +115,7 @@
         .console-body { padding:12px 16px; font-family:'Cascadia Code','Fira Code','Consolas',monospace; font-size:12px; line-height:1.6; color:#e6edf3; max-height:400px; overflow-y:auto; white-space:pre-wrap; word-break:break-all; }
         .console-dot-idle { background:#8b949e; animation:none !important; }
 .nav-icon-log { background: #1e293b; border: 1px solid #334155; }
+.nav-icon-lpb { background: #064e3b; }
 
         .sidebar-footer {
             padding: 16px 20px;
@@ -452,6 +453,12 @@
             <div class="nav-icon nav-icon-log">&#128196;</div>
             Activity Log
         </div>
+
+        <div class="sidebar-nav-label">External</div>
+        <div class="sidebar-nav-item" data-page="lpb-piso" onclick="navigateTo('lpb-piso')">
+            <div class="nav-icon nav-icon-lpb">&#128176;</div>
+            LPB Piso WiFi Model
+        </div>
     </div>
 
     <div class="sidebar-footer">
@@ -475,6 +482,7 @@
         @include('dashboard.scanner')
         @include('dashboard.password-scanner')
         @include('dashboard.log')
+        @include('dashboard.lpb-piso')
 
     </div>
 </div>
@@ -502,6 +510,7 @@
         'scanner':     ['Password Scanner Using Admin', 'Scan router config using adminpldt to decrypt WiFi passwords and crack admin hashes'],
         'password-scanner': ['Password Scanner using adminpldt', 'Decrypt WiFi passwords from router config backup using adminpldt credentials'],
         'log':         ['Activity Log', 'View all triggered actions and their status'],
+        'lpb-piso':    ['LPB Piso WiFi Model', 'Add time and convert to vouchers on LPB Piso WiFi (10.0.0.1)'],
     };
 
     function navigateTo(page) {
@@ -518,6 +527,7 @@
         if (page === 'log') refreshLogs();
         if (page === 'network') refreshRouterStatus();
         if (page === 'scanner') loadWifiPasswords();
+        if (page === 'lpb-piso') lpbConnect();
     }
 
     // --- Toast ---

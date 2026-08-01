@@ -35,3 +35,23 @@ wifi-scanner/.scan_rate_log
 wifi-scanner/__pycache__/
 cred-scanner/credentials.db
 cred-scanner/__pycache__/
+
+# secrets / certs
+*.pfx
+*.cer
+cookie.txt
+local-agent/openrouter-proxy.js
+local-agent/setup-proxy.ps1
+
+# one-off pentest artifacts (HTML dumps, images, configs, reports)
+*.html
+*.png
+*.zip
+local-agent/*.xml
+admin_index_bak.php
+admin_full.txt
+piso_wifi.txt
+lpb_piso_tool.txt
+vuln_report.json
+cred-scanner/network/scan_*.json
+pentestgpt-latest/

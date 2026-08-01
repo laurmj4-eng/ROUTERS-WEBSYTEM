@@ -186,18 +186,18 @@ def main():
     print("\n[Phase 2] Probing Huawei SOAP/REST endpoints...")
 
     soap_endpoints = [
-        "/html/ssmp/wireless/basic/index.asp",
-        "/html/ssmp/wireless/basic5g/index.asp",
-        "/html/ssmp/wireless/security/index.asp",
-        "/html/ssmp/wireless/security5g/index.asp",
-        "/html/ssmp/dhcp/clients.asp",
-        "/html/ssmp/status/dhcp_list.asp",
-        "/html/ssmp/waninfo/waninfo.asp",
-        "/html/ssmp/deviceinfo/deviceinfo.asp",
-        "/html/bbsp/userdevinfo/userdevinfo.asp",
-        "/html/bbsp/waninfo/waninfo.asp",
-        "/html/amp/wlanbasic/WlanBasic.asp?2G",
-        "/html/amp/wlanbasic/WlanBasic.asp?5G",
+        ("/html/ssmp/wireless/basic/index.asp", "Huawei WLAN 2.4G"),
+        ("/html/ssmp/wireless/basic5g/index.asp", "Huawei WLAN 5G"),
+        ("/html/ssmp/wireless/security/index.asp", "Huawei Security"),
+        ("/html/ssmp/wireless/security5g/index.asp", "Huawei Security 5G"),
+        ("/html/ssmp/dhcp/clients.asp", "Huawei DHCP"),
+        ("/html/ssmp/status/dhcp_list.asp", "Huawei DHCP List"),
+        ("/html/ssmp/waninfo/waninfo.asp", "Huawei WAN Info"),
+        ("/html/ssmp/deviceinfo/deviceinfo.asp", "Huawei Device Info"),
+        ("/html/bbsp/userdevinfo/userdevinfo.asp", "Huawei User Device Info"),
+        ("/html/bbsp/waninfo/waninfo.asp", "Huawei WAN Info 2"),
+        ("/html/amp/wlanbasic/WlanBasic.asp?2G", "Huawei AMP 2G"),
+        ("/html/amp/wlanbasic/WlanBasic.asp?5G", "Huawei AMP 5G"),
     ]
 
     for path, label in soap_endpoints:

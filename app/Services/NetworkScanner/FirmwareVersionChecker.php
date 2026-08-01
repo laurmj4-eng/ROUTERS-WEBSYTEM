@@ -186,8 +186,15 @@ class FirmwareVersionChecker
     {
         $findings = [];
 
-        // Check for known Huawei vulnerabilities specific to HG8145X6
-        $knownVulnerabilities = $this->getKnownHuaweiVulnerabilities();
+        $vendorLower = strtolower($vendor);
+
+        if ($vendorLower === 'huawei') {
+            $knownVulnerabilities = $this->getKnownHuaweiVulnerabilities();
+        } elseif (str_contains($vendorLower, 'fiber') || $vendorLower === 'fiberhome') {
+            $knownVulnerabilities = $this->getKnownFiberHomeVulnerabilities();
+        } else {
+            $knownVulnerabilities = [];
+        }
 
         foreach ($knownVulnerabilities as $vuln) {
             if ($this->isAffected($version, $vuln)) {
@@ -206,6 +213,112 @@ class FirmwareVersionChecker
         }
 
         return $findings;
+    }
+
+    private function getKnownFiberHomeVulnerabilities(): array
+    {
+        return [
+            // AN5506 series (most common PLDT FiberHome model)
+            [
+                'id' => 'CVE-2021-27169',
+                'description' => 'FiberHome AN5506-04-FA devices with firmware RP2631 have a hardcoded gepon account with known password, allowing unauthenticated access',
+                'severity' => 'critical',
+                'cvss_score' => 9.8,
+                'remediation' => 'Change or disable the hardcoded gepon account credentials',
+            ],
+            [
+                'id' => 'CVE-2023-3297',
+                'description' => 'FiberHome AN5506-04-FA routers with firmware v1.0.2.4 have hardcoded FTP credentials allowing remote attackers to access the device filesystem',
+                'severity' => 'critical',
+                'cvss_score' => 9.8,
+                'remediation' => 'Change default FTP credentials or disable FTP service',
+            ],
+            [
+                'id' => 'CVE-2021-42912',
+                'description' => 'FiberHome ONU GPON AN5506-04-F RP2617 OS command injection vulnerability allowing authenticated remote code execution as root',
+                'severity' => 'high',
+                'cvss_score' => 8.8,
+                'remediation' => 'Update to latest firmware version that patches the diagnostic interface',
+            ],
+            [
+                'id' => 'CVE-2023-3296',
+                'description' => 'FiberHome AN5506-04-FA routers with firmware v1.0.2.4 have command injection vulnerability in the diagnostic interface allowing authenticated remote code execution',
+                'severity' => 'critical',
+                'cvss_score' => 9.1,
+                'remediation' => 'Update to latest firmware version',
+            ],
+            [
+                'id' => 'CVE-2021-44648',
+                'description' => 'FiberHome AN5506-04-FA firmware up to RP2631 and HG6245D up to RP2602 contain stack-based buffer overflow in HTTP service (webs)',
+                'severity' => 'critical',
+                'cvss_score' => 9.8,
+                'remediation' => 'Apply vendor security patch to address buffer overflow in webs HTTP service',
+            ],
+            [
+                'id' => 'CVE-2019-9556',
+                'description' => 'FiberHome AN5506-04-F RP2669 devices have reflected cross-site scripting (XSS) vulnerability',
+                'severity' => 'medium',
+                'cvss_score' => 5.4,
+                'remediation' => 'Apply vendor firmware update that addresses XSS in the management interface',
+            ],
+            // HG6245D series (also common PLDT FiberHome model)
+            [
+                'id' => 'CVE-2021-27141',
+                'description' => 'FiberHome HG6245D devices up to RP2613 store credentials in /fhconf/umconfig.txt obfuscated via XOR with a hardcoded key, extractable without authentication',
+                'severity' => 'critical',
+                'cvss_score' => 9.8,
+                'remediation' => 'Upgrade firmware, change all credentials, restrict access to /fhconf/ path',
+            ],
+            [
+                'id' => 'CVE-2021-27143',
+                'description' => 'FiberHome HG6245D devices up to RP2613 contain hardcoded user/user1234 credentials for an ISP account',
+                'severity' => 'critical',
+                'cvss_score' => 9.8,
+                'remediation' => 'Change or disable the hardcoded user account credentials',
+            ],
+            [
+                'id' => 'CVE-2021-27148',
+                'description' => 'FiberHome HG6245D devices up to RP2613 contain hardcoded telecomadmin/nE7jA%5m credentials commonly used by PLDT',
+                'severity' => 'critical',
+                'cvss_score' => 9.8,
+                'remediation' => 'Change the telecomadmin password from the default value',
+            ],
+            [
+                'id' => 'CVE-2021-27149',
+                'description' => 'FiberHome HG6245D devices up to RP2613 contain hardcoded adminpldt/z6dUABtl270qRxt7a2uGTiw credentials for PLDT ISP account',
+                'severity' => 'critical',
+                'cvss_score' => 9.8,
+                'remediation' => 'Change or disable the adminpldt account credentials',
+            ],
+            [
+                'id' => 'CVE-2021-27139',
+                'description' => 'FiberHome HG6245D devices up to RP2613 allow extraction of device information without authentication by disabling JavaScript and visiting /info.asp',
+                'severity' => 'high',
+                'cvss_score' => 7.5,
+                'remediation' => 'Upgrade firmware to restrict access to /info.asp without authentication',
+            ],
+            [
+                'id' => 'CVE-2021-27140',
+                'description' => 'FiberHome HG6245D devices up to RP2613 store passwords and authentication cookies in cleartext in web.log HTTP logs',
+                'severity' => 'high',
+                'cvss_score' => 7.5,
+                'remediation' => 'Upgrade firmware, clear existing log files, avoid logging sensitive data',
+            ],
+            [
+                'id' => 'CVE-2021-27142',
+                'description' => 'FiberHome HG6245D devices up to RP2613 use a hardcoded private key with 0777 permissions for HTTPS, allowing man-in-the-middle attacks',
+                'severity' => 'high',
+                'cvss_score' => 7.5,
+                'remediation' => 'Replace the hardcoded private key with a unique per-device certificate',
+            ],
+            [
+                'id' => 'CVE-2022-38814',
+                'description' => 'FiberHome AN5506-02-B vRP2521 has stored cross-site scripting (XSS) vulnerability in the auth_settings component',
+                'severity' => 'medium',
+                'cvss_score' => 5.4,
+                'remediation' => 'Apply vendor firmware update that addresses XSS in auth_settings',
+            ],
+        ];
     }
 
     private function getKnownHuaweiVulnerabilities(): array
