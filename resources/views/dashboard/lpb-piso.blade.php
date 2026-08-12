@@ -25,7 +25,7 @@
                     <input type="number" id="lpbAddDays" min="1" value="500" placeholder="e.g. 500">
                 </div>
                 <button class="btn-primary" id="btnLpbAddTime" onclick="lpbAddTime()" style="width:100%">Add Time</button>
-                <div class="password-hint" style="margin-top:8px">Uses the negative-minute trick via <code>sconvert</code>. 500 days = -720000 minutes.</div>
+                <div class="password-hint" style="margin-top:8px">Uses the negative-minute trick via <code>sconvert</code>. 500 days = -720000 minutes. Requires the tunnel URL set in the Relay / Target card above.</div>
             </div>
 
             <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px">
@@ -194,18 +194,17 @@
         const btn = document.getElementById('btnLpbAddTime');
         const original = btn.textContent;
         btn.disabled = true;
-        btn.textContent = 'Dispatching to agent...';
+        btn.textContent = 'Adding time...';
         try {
-            const res = await lpbFetch('/lpb/trigger', {
+            const res = await lpbFetch('/lpb/add-time', {
                 method: 'POST',
-                body: JSON.stringify({ action: 'add_time', days })
+                body: JSON.stringify({ days })
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`Agent adding ${days} days...`);
-                await lpbWaitForReport(data.log_id, 90000);
+                showToast(data.message || `Added ${days} days!`);
             } else {
-                showToast('Failed to dispatch add-time to agent.', 'error');
+                showToast(data.message || 'Failed to add time.', 'error');
             }
         } catch (err) {
             showToast('Connection error: ' + err.message, 'error');

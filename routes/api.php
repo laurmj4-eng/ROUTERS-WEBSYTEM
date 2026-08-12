@@ -78,6 +78,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // LPB Piso WiFi — convert current time into a voucher (sconvert)
     Route::post('/lpb/convert-my-time', [LpbController::class, 'convertMyTime']);
 
+    // LPB Piso WiFi — add time directly via the negative-minute sconvert trick (relay tunnel, no agent)
+    Route::post('/lpb/add-time', [LpbController::class, 'addTime']);
+
     // LPB Piso WiFi proxy (fallback)
     Route::any('/lpb/{path}', function (Request $request, string $path) {
         $base = App\Support\Relay::get('lpb');

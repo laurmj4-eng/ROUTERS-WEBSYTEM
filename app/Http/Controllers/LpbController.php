@@ -105,7 +105,9 @@ class LpbController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'LPB device unreachable — are you connected to the LPB WiFi network?',
+                'message' => Relay::isDefault('lpb')
+                    ? 'LPB device unreachable — set your tunnel URL in the Relay / Target card.'
+                    : 'LPB device unreachable — are you connected to the LPB WiFi network?',
             ], 502);
         }
 
@@ -160,7 +162,9 @@ class LpbController extends Controller
 
             return response()->json([
                 'success' => false,
-                'message' => 'LPB device unreachable — are you connected to the LPB WiFi network?',
+                'message' => Relay::isDefault('lpb')
+                    ? 'LPB device unreachable — set your tunnel URL in the Relay / Target card.'
+                    : 'LPB device unreachable — are you connected to the LPB WiFi network?',
             ], 502);
         }
 
@@ -194,6 +198,64 @@ class LpbController extends Controller
             'message'        => 'Converted '.$amountMinutes.' minutes into a voucher.',
             'amount_minutes' => $amountMinutes,
             'voucher'        => $voucher,
+        ]);
+    }
+
+    /**
+     * Adds time to the current LPB client session using the negative-minute
+     * sconvert trick: POST /admin/index?sconvert=1 with a negative
+     * amountminutes (-days x 1440). Works over a relay tunnel — no agent needed.
+     */
+    public function addTime(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'days' => 'required|integer|min:1|max:3650',
+        ]);
+
+        $base = rtrim(Relay::get('lpb'), '/');
+        $amountMinutes = -($validated['days'] * 1440);
+
+        try {
+            $http = Http::timeout(10)->withHeaders([
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            ]);
+
+            $session = $http->get($base.'/');
+            $cookies = $this->extractCookies($session->headers());
+
+            $response = $http->asForm()->withHeaders(['Cookie' => $cookies])
+                ->post($base.'/admin/index?sconvert=1', ['amountminutes' => $amountMinutes]);
+        } catch (\Throwable $e) {
+            Log::warning('LPB add time failed: '.$e->getMessage());
+
+            return response()->json([
+                'success' => false,
+                'message' => Relay::isDefault('lpb')
+                    ? 'LPB device unreachable — set your tunnel URL in the Relay / Target card.'
+                    : 'LPB device unreachable via tunnel ('.$e->getMessage().')',
+            ], 502);
+        }
+
+        if (! $response->successful()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'LPB responded with HTTP '.$response->status().'.',
+            ], 502);
+        }
+
+        $body = trim($response->body());
+        if ($body !== '1') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Add time failed — server responded: '.(mb_strlen($body) > 200 ? mb_substr($body, 0, 200).'…' : $body),
+            ], 422);
+        }
+
+        return response()->json([
+            'success'        => true,
+            'message'        => 'Added '.$validated['days'].' days ('.abs($amountMinutes).' minutes) to the current session.',
+            'days'           => $validated['days'],
+            'amount_minutes' => $amountMinutes,
         ]);
     }
 

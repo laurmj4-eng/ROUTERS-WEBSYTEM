@@ -28,4 +28,11 @@ class Relay
     {
         return rtrim((string) config('scanning.' . $family . '_url', ''), '/');
     }
+
+    public static function isDefault(string $family): bool
+    {
+        $url = Cache::get('relay:' . $family);
+
+        return ! (is_string($url) && $url !== '');
+    }
 }
