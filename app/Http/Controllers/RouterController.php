@@ -368,6 +368,14 @@ class RouterController extends Controller
 
         $routerIp   = $validated['router_ip'] ?? '192.168.1.1';
         $scriptPath = base_path('local-agent/puppeteer/getxml_file.js');
+
+        if (! is_file($scriptPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Router agent not installed on this server — this tool runs on your shop machine.',
+            ], 502);
+        }
+
         $downloadPath = sys_get_temp_dir() . '/psk_' . bin2hex(random_bytes(4));
 
         mkdir($downloadPath, 0777, true);
@@ -429,6 +437,14 @@ class RouterController extends Controller
 
         $fullPath = Storage::disk('local')->path($tmpPath);
         $scriptPath = base_path('local-agent/puppeteer/getxml_file.js');
+
+        if (! is_file($scriptPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Router agent not installed on this server — this tool runs on your shop machine.',
+            ], 502);
+        }
+
         $wordlistFile = $validated['wordlist'] ?? null;
         $wordlistPath = $wordlistFile
             ? $wordlistFile->getRealPath()
@@ -521,6 +537,13 @@ class RouterController extends Controller
         $routerIp  = $validated['router_ip'] ?? '192.168.1.1';
         $scriptPath = base_path('local-agent/puppeteer/test_credential.cjs');
 
+        if (! is_file($scriptPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Router agent not installed on this server — this tool runs on your shop machine.',
+            ], 502);
+        }
+
         $escUser = escapeshellarg($validated['username']);
         $escPass = escapeshellarg($validated['password']);
         $escIp   = escapeshellarg($routerIp);
@@ -557,6 +580,13 @@ class RouterController extends Controller
         $routerIp = $validated['router_ip'] ?? '192.168.1.1';
         $scriptPath = base_path('local-agent/cgi_password_reset.cjs');
         $baseDir = base_path('local-agent');
+
+        if (PHP_OS_FAMILY !== 'Windows') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Router agent not installed on this server — this tool runs on your shop machine.',
+            ], 502);
+        }
 
         // Write a temp batch file with the password pre-filled
         $batPath = sys_get_temp_dir() . '/cgi_reset_' . bin2hex(random_bytes(4)) . '.bat';
