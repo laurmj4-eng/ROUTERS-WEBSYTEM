@@ -81,6 +81,9 @@ Route::middleware('auth:sanctum')->group(function () {
     // LPB Piso WiFi — add time directly via the negative-minute sconvert trick (relay tunnel, no agent)
     Route::post('/lpb/add-time', [LpbController::class, 'addTime']);
 
+    // LPB admin credentials used for MAC-targeted add time (cached server-side)
+    Route::match(['get', 'post'], '/lpb/admin-creds', [LpbController::class, 'adminCreds']);
+
     // LPB Piso WiFi proxy (fallback)
     Route::any('/lpb/{path}', function (Request $request, string $path) {
         $base = App\Support\Relay::get('lpb');
