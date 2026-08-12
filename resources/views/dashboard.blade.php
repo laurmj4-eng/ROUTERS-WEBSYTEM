@@ -1693,11 +1693,15 @@
     // --- Init ---
     loadRelay();
     navigateTo('{{ $defaultPage }}');
-    refreshRouterStatus();
-    loadWifiPasswords();
-    loadDefaultCredential();
-    refreshLogs();
-    setInterval(refreshLogs, 5000);
+    if (pageTitles['network']) refreshRouterStatus();
+    if (pageTitles['scanner']) {
+        loadWifiPasswords();
+        loadDefaultCredential();
+    }
+    if (pageTitles['log']) {
+        refreshLogs();
+        setInterval(refreshLogs, 5000);
+    }
 </script>
 
 </body>
