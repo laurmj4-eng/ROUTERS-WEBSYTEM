@@ -51,7 +51,7 @@
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px">
                 <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:16px">&#128279; Connection</div>
-                <div class="password-hint" style="margin-bottom:12px">Target is configured on the local agent via <code>LPB_URL</code> env (default <code>http://10.0.0.1</code>). Operations are executed by the agent's Puppeteer browser.</div>
+                <div class="password-hint" style="margin-bottom:12px">Add Time, Scan Password and Convert My Current Time run directly through the tunnel URL above. Connect / multi-voucher conversion still need the local agent's Puppeteer browser.</div>
                 <button class="btn-scan" id="btnLpbConnect" onclick="lpbConnect()" style="width:100%;justify-content:center">
                     <span class="btn-text">Connect</span>
                 </button>
