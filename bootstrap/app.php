@@ -35,11 +35,15 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $exceptions->render(function (Throwable $e, \Illuminate\Http\Request $request) {
             if ($request->is('api/*')) {
+                $status = $e instanceof \Symfony\Component\HttpKernel\Exception\HttpException
+                    ? $e->getStatusCode()
+                    : 500;
+
                 return response()->json([
                     'error' => $e->getMessage(),
                     'class' => get_class($e),
                     'file'  => $e->getFile().':'.$e->getLine(),
-                ], 500);
+                ], $status);
             }
         });
     })->create();
