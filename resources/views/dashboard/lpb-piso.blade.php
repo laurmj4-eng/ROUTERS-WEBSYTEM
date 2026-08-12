@@ -28,6 +28,9 @@
                     <label>Device MAC (optional)</label>
                     <input type="text" id="lpbAddMac" placeholder="e.g. A4:5E:60:B2:3C:9D" style="text-transform:uppercase">
                     <div class="password-hint">With a MAC: credits that device via the portal admin (set Admin Login below). Empty = current device (PC session) via the negative-minute trick. No tunnel needed for MAC mode? It still uses it — keep the tunnel URL set.</div>
+                    <a class="btn-scan" href="{{ url('/lpb/add') }}" target="_blank" style="width:100%;justify-content:center;margin-top:12px;text-decoration:none">
+                        <span class="btn-text">&#128241; Customer page: Add Time to THIS phone</span>
+                    </a>
                 </div>
                 <button class="btn-primary" id="btnLpbAddTime" onclick="lpbAddTime()" style="width:100%">Add Time</button>
                 <div class="password-hint" style="margin-top:8px">Uses the negative-minute trick via <code>sconvert</code>. 500 days = -720000 minutes. Requires the tunnel URL set in the Relay / Target card above.</div>
