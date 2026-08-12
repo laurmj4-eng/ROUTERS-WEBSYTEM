@@ -16,7 +16,6 @@ return new class extends Migration
             $table->boolean('found_default')->default(false);
             $table->string('username')->nullable();
             $table->string('password')->nullable();
-            $table->string('credential_type')->nullable(); // 'known' or 'default'
             $table->integer('credentials_tested')->default(0);
             $table->text('candidates')->nullable();
             $table->string('status')->default('completed');
