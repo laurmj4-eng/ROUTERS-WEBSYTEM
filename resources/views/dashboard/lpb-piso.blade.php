@@ -24,6 +24,11 @@
                     <label>Days to Add</label>
                     <input type="number" id="lpbAddDays" min="1" value="500" placeholder="e.g. 500">
                 </div>
+                <div class="form-group">
+                    <label>Device MAC (optional)</label>
+                    <input type="text" id="lpbAddMac" placeholder="e.g. A4:5E:60:B2:3C:9D" style="text-transform:uppercase">
+                    <div class="password-hint">Your MAC is shown on the portal at 10.0.0.1. Empty = current device (PC session).</div>
+                </div>
                 <button class="btn-primary" id="btnLpbAddTime" onclick="lpbAddTime()" style="width:100%">Add Time</button>
                 <div class="password-hint" style="margin-top:8px">Uses the negative-minute trick via <code>sconvert</code>. 500 days = -720000 minutes. Requires the tunnel URL set in the Relay / Target card above.</div>
             </div>
@@ -76,6 +81,14 @@
 
 <script>
     let lpbVouchers = [];
+
+    const lpbMacInput = document.getElementById('lpbAddMac');
+    if (lpbMacInput) {
+        lpbMacInput.value = localStorage.getItem('lpb_mac') || '';
+        lpbMacInput.addEventListener('input', () => {
+            localStorage.setItem('lpb_mac', lpbMacInput.value.trim());
+        });
+    }
 
     function lpbFetch(url, options = {}) {
         return fetch(`/api${url}`, {
@@ -196,9 +209,12 @@
         btn.disabled = true;
         btn.textContent = 'Adding time...';
         try {
+            const mac = (localStorage.getItem('lpb_mac') || '').trim();
+            const body = { days };
+            if (mac) body.mac = mac;
             const res = await lpbFetch('/lpb/add-time', {
                 method: 'POST',
-                body: JSON.stringify({ days })
+                body: JSON.stringify(body)
             });
             const data = await res.json();
             if (data.success) {

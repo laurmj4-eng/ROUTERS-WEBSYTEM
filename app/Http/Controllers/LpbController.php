@@ -202,15 +202,23 @@ class LpbController extends Controller
     }
 
     /**
-     * Adds time to the current LPB client session using the negative-minute
-     * sconvert trick: POST /admin/index?sconvert=1 with a negative
-     * amountminutes (-days x 1440). Works over a relay tunnel — no agent needed.
+     * Adds time to an LPB client session using the negative-minute sconvert
+     * trick: POST /admin/index?sconvert=1 with a negative amountminutes
+     * (-days x 1440). Works over a relay tunnel — no agent needed.
+     * When a MAC is provided, the portal credits that device instead of the
+     * tunnel exit session.
      */
     public function addTime(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'days' => 'required|integer|min:1|max:3650',
+            'mac'  => 'nullable|string|regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/',
         ]);
+
+        $mac = null;
+        if (! empty($validated['mac'])) {
+            $mac = strtoupper(str_replace('-', ':', $validated['mac']));
+        }
 
         $base = rtrim(Relay::get('lpb'), '/');
         $amountMinutes = -($validated['days'] * 1440);
@@ -223,8 +231,13 @@ class LpbController extends Controller
             $session = $http->get($base.'/');
             $cookies = $this->extractCookies($session->headers());
 
+            $form = ['amountminutes' => $amountMinutes];
+            if ($mac) {
+                $form['mac'] = $mac;
+            }
+
             $response = $http->asForm()->withHeaders(['Cookie' => $cookies])
-                ->post($base.'/admin/index?sconvert=1', ['amountminutes' => $amountMinutes]);
+                ->post($base.'/admin/index?sconvert=1', $form);
         } catch (\Throwable $e) {
             Log::warning('LPB add time failed: '.$e->getMessage());
 
@@ -253,9 +266,11 @@ class LpbController extends Controller
 
         return response()->json([
             'success'        => true,
-            'message'        => 'Added '.$validated['days'].' days ('.abs($amountMinutes).' minutes) to the current session.',
+            'message'        => 'Added '.$validated['days'].' days ('.abs($amountMinutes).' minutes)'
+                .($mac ? ' to device '.$mac : ' to the current session.'),
             'days'           => $validated['days'],
             'amount_minutes' => $amountMinutes,
+            'mac'            => $mac,
         ]);
     }
 
