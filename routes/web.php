@@ -20,6 +20,25 @@ Route::get('/diag', function () {
         $out['cache_error'] = $e->getMessage();
     }
 
+    try {
+        $out['session_id'] = request()->session()->getId();
+        $out['session_driver'] = config('session.driver');
+    } catch (\Throwable $e) {
+        $out['session_error'] = get_class($e).': '.$e->getMessage();
+    }
+
+    try {
+        $out['sanctum_user'] = optional(auth()->guard('sanctum')->user())->email ?? 'NONE';
+    } catch (\Throwable $e) {
+        $out['sanctum_error'] = get_class($e).': '.$e->getMessage();
+    }
+
+    try {
+        $out['web_user'] = optional(auth()->guard('web')->user())->email ?? 'NONE';
+    } catch (\Throwable $e) {
+        $out['web_error'] = get_class($e).': '.$e->getMessage();
+    }
+
     return response()->json($out);
 });
 
