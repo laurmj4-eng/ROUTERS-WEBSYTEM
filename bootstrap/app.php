@@ -27,6 +27,12 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (\Illuminate\Auth\AuthenticationException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('api/*')) {
+                return response()->json(['error' => 'Unauthenticated'], 401);
+            }
+        });
+
         $exceptions->render(function (Throwable $e, \Illuminate\Http\Request $request) {
             if ($request->is('api/*')) {
                 return response()->json([
