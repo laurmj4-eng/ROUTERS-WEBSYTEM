@@ -35,7 +35,13 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        // Delete the API token when the user authenticated with one; session
+        // (dashboard) logins use a TransientToken with no delete() and are
+        // handled by the web logout.
+        $token = $request->user()->currentAccessToken();
+        if ($token !== null && ! $token instanceof \Laravel\Sanctum\TransientToken) {
+            $token->delete();
+        }
 
         return response()->json(['message' => 'Logged out.']);
     }

@@ -47,6 +47,10 @@ const CONFIG = {
   LARAVEL_API_URL: process.env.LARAVEL_API_URL || 'http://localhost:8000/api',
   LARAVEL_API_TOKEN: process.env.LARAVEL_API_TOKEN || '',
 
+  // Tulog Wifi Extender scan
+  TULOG_SSID: process.env.TULOG_SSID || 'Tulog Wifi Extender',
+  TULOG_PORTS: (process.env.TULOG_PORTS || '80,443,8080,23,22,53,81,8888,5555,2323,7547,8443').split(',').map(Number).filter(Boolean),
+
   // Timing
   HEALTH_CHECK_INTERVAL: 5 * 60 * 1000,  // 5 minutes
   RECONNECT_DELAY: 5000,                   // 5 seconds
@@ -883,6 +887,22 @@ class StatusReporter {
       console.error(`[report] Failed to report brute-force found:`, err.message);
     }
   }
+
+  async reportTulogScan(logId, scanData) {
+    try {
+      await fetch(`${CONFIG.LARAVEL_API_URL}/agent/tulog/scan-results`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${CONFIG.LARAVEL_API_TOKEN}`,
+        },
+        body: JSON.stringify({ log_id: logId, ...scanData }),
+      });
+      console.log(`[report] Tulog scan results posted for log #${logId}`);
+    } catch (err) {
+      console.error(`[report] Failed to report tulog scan:`, err.message);
+    }
+  }
 }
 
 // ============================================================
@@ -946,6 +966,43 @@ class Agent {
         console.error('[agent] LPB handler error:', err);
       });
     });
+
+    channel.bind('TulogScanRequested', (data) => {
+      console.log(`\n[agent] Tulog scan received (log #${data.log_id}, ssid: ${data.ssid || CONFIG.TULOG_SSID})`);
+      this.handleTulogScan(data).catch(err => {
+        console.error('[agent] Tulog scan handler error:', err);
+      });
+    });
+  }
+
+  async handleTulogScan(data) {
+    const { TulogScanner } = require('./tulog/tulog_scan');
+    const scanner = new TulogScanner({
+      ssid: data.ssid || CONFIG.TULOG_SSID,
+      restoreSsid: data.restore_ssid || null,
+      ports: CONFIG.TULOG_PORTS,
+    });
+    try {
+      const report = await scanner.run();
+      await this.reporter.reportTulogScan(data.log_id, report);
+      const ok = report.status === 'completed' || report.status === 'partial';
+      await this.reporter.report(data.log_id, ok ? 'success' : 'failed');
+      if (ok) {
+        this.state.update({ operationsCompleted: this.state.get('operationsCompleted') + 1 });
+      } else {
+        this.state.update({ operationsFailed: this.state.get('operationsFailed') + 1 });
+      }
+      console.log(`[agent] Tulog scan finished: ${report.status}`);
+    } catch (err) {
+      console.error(`[agent] Tulog scan failed: ${err.message}`);
+      await this.reporter.reportTulogScan(data.log_id, {
+        status: 'failed',
+        target_ssid: data.ssid || CONFIG.TULOG_SSID,
+        error: err.message,
+      });
+      await this.reporter.report(data.log_id, 'failed');
+      this.state.update({ operationsFailed: this.state.get('operationsFailed') + 1 });
+    }
   }
 
   async handleLpbAction(data) {

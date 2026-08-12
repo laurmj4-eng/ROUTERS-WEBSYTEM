@@ -27,4 +27,10 @@ return [
     ],
 
     'agent_url' => env('LOCAL_AGENT_URL'),
+
+    'lpb_url' => env('LPB_URL', 'http://10.0.0.1'),
+
+    'adu_url' => env('ADU_URL', 'http://10.0.0.1'),
+
+    'pldt_url' => env('PLDT_URL', 'http://192.168.1.1'),
 ];

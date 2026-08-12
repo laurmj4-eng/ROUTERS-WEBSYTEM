@@ -43,6 +43,19 @@ cookie.txt
 local-agent/openrouter-proxy.js
 local-agent/setup-proxy.ps1
 
+# scratch / tooling / one-off artifacts
+.opencode/
+-X
+tulog_wifi_db.sqlite
+pkg/
+scan-ui/
+tools/reports/
+advanced_probe.py
+bypass_probe.py
+deep_probe.py
+inspect_db.py
+mikrotik_probe.py
+
 # one-off pentest artifacts (HTML dumps, images, configs, reports)
 *.html
 *.png

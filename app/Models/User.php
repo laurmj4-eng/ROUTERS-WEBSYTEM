@@ -23,6 +23,10 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
+        'adu_url',
+        'adu_customer_user',
+        'adu_customer_pass',
+        'adu_tmp_client_id',
     ];
 
     /**

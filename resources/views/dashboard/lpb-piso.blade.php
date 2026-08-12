@@ -40,6 +40,11 @@
                 </div>
                 <button class="btn-primary" id="btnLpbConvert" onclick="lpbConvertToVouchers()" style="width:100%">Convert to Vouchers</button>
                 <div class="password-hint" style="margin-top:8px">Converts your existing time into voucher codes. Each voucher = days x 1440 minutes.</div>
+                <button class="btn-scan" id="btnLpbConvertNow" onclick="lpbConvertMyTime()" style="width:100%;justify-content:center;margin-top:12px">
+                    <span class="spinner"></span>
+                    <span class="btn-text">Convert My Current Time (7200 min)</span>
+                </button>
+                <div class="password-hint" style="margin-top:8px">Immediately converts the current balance into a voucher via <code>POST /admin/index?sconvert=1</code> with <code>amountminutes=7200</code>.</div>
             </div>
         </div>
 
@@ -241,6 +246,36 @@
         }
         btn.disabled = false;
         btn.textContent = original;
+    }
+
+    async function lpbConvertMyTime() {
+        const btn = document.getElementById('btnLpbConvertNow');
+        const text = btn.querySelector('.btn-text');
+        btn.disabled = true;
+        text.textContent = 'Converting...';
+        try {
+            const res = await lpbFetch('/lpb/convert-my-time', {
+                method: 'POST',
+                body: JSON.stringify({})
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast(data.message || 'Converted!');
+                if (data.voucher) {
+                    lpbVouchers.unshift(data.voucher);
+                    renderLpbVouchers();
+                    document.getElementById('lpbVoucherCount').textContent = lpbVouchers.length;
+                    document.getElementById('lpbNoVouchers').style.display = 'none';
+                }
+                lpbRefreshState();
+            } else {
+                showToast(data.message || 'Conversion failed.', 'error');
+            }
+        } catch (err) {
+            showToast('Conversion error: ' + err.message, 'error');
+        }
+        btn.disabled = false;
+        text.textContent = 'Convert My Current Time (7200 min)';
     }
 
     async function lpbRefreshState() {

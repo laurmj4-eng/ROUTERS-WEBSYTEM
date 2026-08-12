@@ -1,0 +1,38 @@
+services:
+  - type: web
+    name: piso-wifi-tools
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: LOG_CHANNEL
+        value: stderr
+      - key: APP_URL
+        value: https://piso-wifi-tools.onrender.com
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: SESSION_DRIVER
+        value: database
+      - key: CACHE_STORE
+        value: database
+      - key: QUEUE_CONNECTION
+        value: sync
+      - key: BROADCAST_CONNECTION
+        value: null
+      - key: SANCTUM_STATEFUL_DOMAINS
+        value: piso-wifi-tools.onrender.com
+      - key: APP_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: piso-wifi-db
+          property: connectionString
+    healthCheckPath: /up
+
+databases:
+  - name: piso-wifi-db
+    plan: free

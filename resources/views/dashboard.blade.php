@@ -1,3 +1,44 @@
+@php
+    $tools = $tools ?? 'all';
+    $families = [
+        'lpb' => ['label' => 'LPB Piso WiFi', 'pages' => ['lpb-piso', 'lpb-password']],
+        'pldt' => ['label' => 'PLDT WiFi', 'pages' => ['reboot', 'session', 'wifi-pass', 'network', 'scanner', 'password-scanner', 'log']],
+        'adu' => ['label' => 'ADU Piso WiFi', 'pages' => ['adu-piso']],
+    ];
+    $pages = $tools === 'all' ? array_values(array_unique(array_merge(...array_column($families, 'pages')))) : ($families[$tools]['pages'] ?? []);
+    $familyLabel = $tools === 'all' ? 'All tools' : ($families[$tools]['label'] ?? $tools);
+    $defaultPage = $pages[0] ?? 'log';
+
+    $nav = [
+        'reboot' => ['&#8635;', 'System Reboot', 'nav-icon-reboot'],
+        'session' => ['&#128274;', 'Router Session', 'nav-icon-session'],
+        'wifi-pass' => ['&#128190;', 'Wi-Fi Password', 'nav-icon-wifi-pass'],
+        'network' => ['&#128246;', 'Network Status', 'nav-icon-network'],
+        'scanner' => ['&#128269;', 'Password Scanner Using Admin', 'nav-icon-scanner'],
+        'password-scanner' => ['&#128477;', 'Password Scanner using adminpldt', 'nav-icon-password-scanner'],
+        'log' => ['&#128196;', 'Activity Log', 'nav-icon-log'],
+        'adu-piso' => ['&#9202;', 'ADU PISO WIFI TOOLS', 'nav-icon-adu'],
+        'lpb-piso' => ['&#128176;', 'LPB Piso WiFi Model', 'nav-icon-lpb'],
+        'lpb-password' => ['&#128273;', 'LPB Piso WiFi Password Model', 'nav-icon-lpb-pass'],
+    ];
+
+    $pageTitles = [
+        'reboot' => ['System Reboot', 'Reboot your router remotely'],
+        'session' => ['Router Session', 'View and check agent session status'],
+        'wifi-pass' => ['Wi-Fi Password', 'Change the Wi-Fi password on both 2.4G and 5G'],
+        'network' => ['Network Status', 'View connected devices and network info'],
+        'scanner' => ['Password Scanner Using Admin', 'Scan router config using adminpldt to decrypt WiFi passwords and crack admin hashes'],
+        'password-scanner' => ['Password Scanner using adminpldt', 'Decrypt WiFi passwords from router config backup using adminpldt credentials'],
+        'log' => ['Activity Log', 'View all triggered actions and their status'],
+        'lpb-piso' => ['LPB Piso WiFi Model', 'Add time and convert to vouchers on LPB Piso WiFi'],
+        'adu-piso' => ['ADU Piso WiFi Tools', 'Add time and convert vouchers on the ADU AdoPiSoft piso wifi'],
+        'lpb-password' => ['LPB Piso WiFi Password Model', 'Admin credentials for LPB Piso WiFi, recovered via print.js SQL injection'],
+    ];
+
+    $pageView = [
+        'wifi-pass' => 'dashboard.wifi-password',
+    ];
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -116,6 +157,8 @@
         .console-dot-idle { background:#8b949e; animation:none !important; }
 .nav-icon-log { background: #1e293b; border: 1px solid #334155; }
 .nav-icon-lpb { background: #064e3b; }
+.nav-icon-lpb-pass { background: #1e1b4b; }
+.nav-icon-adu { background: #312e81; }
 
         .sidebar-footer {
             padding: 16px 20px;
@@ -408,57 +451,113 @@
             .network-grid { grid-template-columns: 1fr; }
             .form-row { flex-direction: column; gap: 0; }
         }
+
+        /* Mobile drawer */
+        .hamburger {
+            display: none;
+            position: fixed;
+            top: 14px;
+            left: 14px;
+            z-index: 300;
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            width: 42px;
+            height: 42px;
+            border-radius: 10px;
+            font-size: 18px;
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+        }
+        .drawer-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(2, 6, 23, 0.7);
+            z-index: 199;
+        }
+        .drawer-overlay.show { display: block; }
+        .drawer-top {
+            display: none;
+            padding: 16px 20px;
+            border-bottom: 1px solid #334155;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+        }
+        .drawer-top .username { font-size: 13px; color: #94a3b8; word-break: break-all; }
+        .drawer-top .btn-logout {
+            background: #1e293b;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .drawer-top .btn-logout:hover { border-color: #ef4444; color: #f87171; }
+        .sidebar-close {
+            display: none;
+            position: absolute;
+            top: 14px;
+            right: 14px;
+            background: transparent;
+            border: 1px solid #334155;
+            color: #94a3b8;
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 301;
+        }
+        @media (max-width: 768px) {
+            .hamburger { display: flex; }
+            .drawer-top { display: flex; }
+            .sidebar-close { display: block; }
+            .sidebar {
+                display: flex;
+                transform: translateX(-100%);
+                transition: transform 0.25s ease;
+                box-shadow: 4px 0 30px rgba(0,0,0,0.5);
+                z-index: 200;
+            }
+            .sidebar.open { transform: translateX(0); }
+            .main-header { padding: 16px 16px 16px 70px; }
+        }
     </style>
 </head>
 <body>
 
-<div class="sidebar">
+<button class="hamburger" onclick="toggleDrawer(true)" title="Menu">&#9776;</button>
+
+<div class="drawer-overlay" id="drawerOverlay" onclick="toggleDrawer(false)"></div>
+
+<div class="sidebar" id="sidebar">
+    <button class="sidebar-close" onclick="toggleDrawer(false)" title="Close">&#10005;</button>
     <div class="sidebar-header">
         <div class="icon">&#9881;</div>
         <div>
-            <h1>Router Control</h1>
-            <p>Huawei HG8145X6-10</p>
+            <h1>{{ $familyLabel }}</h1>
+            <p>{{ $tools === 'all' ? 'All tool families' : ($families[$tools]['pages'] ?? [] ? 'Select a tool below' : '') }}</p>
         </div>
     </div>
 
+    <div class="drawer-top">
+        <span class="username">{{ auth()->user()?->name ?? 'Guest' }} &lt;{{ auth()->user()?->email ?? '' }}&gt;</span>
+        <a href="{{ url('/') }}" class="btn-logout">&#8592; All tools</a>
+    </div>
+
     <div class="sidebar-nav">
-        <div class="sidebar-nav-label">Router</div>
-        <div class="sidebar-nav-item active" data-page="reboot" onclick="navigateTo('reboot')">
-            <div class="nav-icon nav-icon-reboot">&#8635;</div>
-            System Reboot
-        </div>
-        <div class="sidebar-nav-item" data-page="session" onclick="navigateTo('session')">
-            <div class="nav-icon nav-icon-session">&#128274;</div>
-            Router Session
-        </div>
-        <div class="sidebar-nav-item" data-page="wifi-pass" onclick="navigateTo('wifi-pass')">
-            <div class="nav-icon nav-icon-wifi-pass">&#128190;</div>
-            Wi-Fi Password
-        </div>
-        <div class="sidebar-nav-item" data-page="network" onclick="navigateTo('network')">
-            <div class="nav-icon nav-icon-network">&#128246;</div>
-            Network Status
-        </div>
-
-        <div class="sidebar-nav-label">Tools</div>
-        <div class="sidebar-nav-item" data-page="scanner" onclick="navigateTo('scanner')">
-            <div class="nav-icon nav-icon-scanner">&#128269;</div>
-            Password Scanner Using Admin
-        </div>
-        <div class="sidebar-nav-item" data-page="password-scanner" onclick="navigateTo('password-scanner')">
-            <div class="nav-icon nav-icon-password-scanner">&#128477;</div>
-            Password Scanner using adminpldt
-        </div>
-        <div class="sidebar-nav-item" data-page="log" onclick="navigateTo('log')">
-            <div class="nav-icon nav-icon-log">&#128196;</div>
-            Activity Log
-        </div>
-
-        <div class="sidebar-nav-label">External</div>
-        <div class="sidebar-nav-item" data-page="lpb-piso" onclick="navigateTo('lpb-piso')">
-            <div class="nav-icon nav-icon-lpb">&#128176;</div>
-            LPB Piso WiFi Model
-        </div>
+        <div class="sidebar-nav-label">{{ $familyLabel }}</div>
+        @foreach ($pages as $pg)
+            <div class="sidebar-nav-item" data-page="{{ $pg }}" onclick="navigateTo('{{ $pg }}')">
+                <div class="nav-icon {{ $nav[$pg][2] ?? 'nav-icon-reboot' }}">{!! $nav[$pg][0] ?? '&#128225;' !!}</div>
+                {{ $nav[$pg][1] ?? $pg }}
+            </div>
+        @endforeach
     </div>
 
     <div class="sidebar-footer">
@@ -475,14 +574,31 @@
 
     <div class="main-body">
 
-        @include('dashboard.reboot')
-        @include('dashboard.session')
-        @include('dashboard.wifi-password')
-        @include('dashboard.network')
-        @include('dashboard.scanner')
-        @include('dashboard.password-scanner')
-        @include('dashboard.log')
-        @include('dashboard.lpb-piso')
+        <div class="card card-full" style="margin-bottom:20px;padding:20px 24px;">
+            <div class="card-title" style="margin-bottom:12px;">
+                <span>&#128279;</span> Relay / Target URL
+                <span class="badge badge-blue" id="relayStatus">Unknown</span>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="margin-bottom:0;flex:3;">
+                    <input id="relayUrl" placeholder="{{ $tools === 'lpb' || $tools === 'adu' ? 'https://xxx.trycloudflare.com' : ($tools === 'pldt' ? 'http://192.168.1.1' : '') }}" />
+                    <div class="password-hint">
+                        @if ($tools === 'lpb' || $tools === 'adu')
+                            Paste the tunnel URL from your phone (cloudflared) that exposes the piso portal @ 10.0.0.1.
+                        @else
+                            Router IP for the PLDT management interface.
+                        @endif
+                    </div>
+                </div>
+                <div class="form-group" style="margin-bottom:0;flex:1;">
+                    <button class="btn-primary" id="btnRelaySave" onclick="saveRelay()">Save target</button>
+                </div>
+            </div>
+        </div>
+
+        @foreach ($pages as $pg)
+            @include($pageView[$pg] ?? 'dashboard.' . $pg)
+        @endforeach
 
     </div>
 </div>
@@ -494,6 +610,29 @@
     let logPage = 1;
     const logPerPage = 10;
 
+    // Inject the CSRF token (Laravel's XSRF-TOKEN cookie) into every fetch call.
+    (function () {
+        const originalFetch = window.fetch;
+        window.fetch = function (url, options) {
+            options = options || {};
+            options.headers = options.headers || {};
+            if (!options.headers['X-XSRF-TOKEN']) {
+                const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/);
+                if (match) {
+                    options.headers['X-XSRF-TOKEN'] = decodeURIComponent(match[1]);
+                }
+            }
+            return originalFetch.call(this, url, options);
+        };
+    })();
+
+    function toggleDrawer(open) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('drawerOverlay');
+        sidebar.classList.toggle('open', open);
+        overlay.classList.toggle('show', open);
+    }
+
     function esc(s) {
         if (s == null) return '';
         const div = document.createElement('div');
@@ -502,16 +641,8 @@
     }
 
     // --- Navigation ---
-    const pageTitles = {
-        'reboot':      ['System Reboot', 'Reboot your Huawei router remotely'],
-        'session':     ['Router Session', 'View and check agent session status'],
-        'wifi-pass':   ['Wi-Fi Password', 'Change the Wi-Fi password on both 2.4G and 5G'],
-        'network':     ['Network Status', 'View connected devices and network info'],
-        'scanner':     ['Password Scanner Using Admin', 'Scan router config using adminpldt to decrypt WiFi passwords and crack admin hashes'],
-        'password-scanner': ['Password Scanner using adminpldt', 'Decrypt WiFi passwords from router config backup using adminpldt credentials'],
-        'log':         ['Activity Log', 'View all triggered actions and their status'],
-        'lpb-piso':    ['LPB Piso WiFi Model', 'Add time and convert to vouchers on LPB Piso WiFi (10.0.0.1)'],
-    };
+    const FAMILY = @json($tools);
+    const pageTitles = @json(array_intersect_key($pageTitles, array_flip($pages)));
 
     function navigateTo(page) {
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -524,10 +655,58 @@
         document.getElementById('pageTitle').textContent = title[0];
         document.getElementById('pageSubtitle').textContent = title[1];
 
+        toggleDrawer(false);
+
         if (page === 'log') refreshLogs();
         if (page === 'network') refreshRouterStatus();
         if (page === 'scanner') loadWifiPasswords();
         if (page === 'lpb-piso') lpbConnect();
+        if (page === 'adu-piso') aduRefreshState();
+    }
+
+    // --- Relay / Target ---
+    async function loadRelay() {
+        try {
+            const res = await fetch(`${API_BASE}/relay/${FAMILY}`, { headers: { 'Accept': 'application/json' } });
+            const data = await res.json();
+            const el = document.getElementById('relayUrl');
+            const badge = document.getElementById('relayStatus');
+            if (data.active) {
+                el.value = data.url;
+                badge.textContent = 'Active: ' + data.url.replace(/^https?:\/\//, '');
+                badge.className = 'badge badge-green';
+            } else {
+                el.value = data.url;
+                badge.textContent = 'Not set — using default';
+                badge.className = 'badge badge-yellow';
+            }
+        } catch (err) {
+            console.error('Relay load failed:', err);
+        }
+    }
+
+    async function saveRelay() {
+        const btn = document.getElementById('btnRelaySave');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+        try {
+            const res = await fetch(`${API_BASE}/relay/${FAMILY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': decodeURIComponent((document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/) || [])[1] || '') },
+                body: JSON.stringify({ url: document.getElementById('relayUrl').value.trim() })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast('Target saved.');
+                loadRelay();
+            } else {
+                showToast(data.message || 'Failed to save target.', 'error');
+            }
+        } catch (err) {
+            showToast('Connection error: ' + err.message, 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Save target';
     }
 
     // --- Toast ---
@@ -1512,6 +1691,8 @@
     }
 
     // --- Init ---
+    loadRelay();
+    navigateTo('{{ $defaultPage }}');
     refreshRouterStatus();
     loadWifiPasswords();
     loadDefaultCredential();
