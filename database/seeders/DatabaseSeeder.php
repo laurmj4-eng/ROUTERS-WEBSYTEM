@@ -25,10 +25,13 @@ class DatabaseSeeder extends Seeder
 
     public function run(): void
     {
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-        ]);
+        if (! User::where('email', 'test@example.com')->exists()) {
+            User::create([
+                'name' => 'Test User',
+                'email' => 'test@example.com',
+                'password' => env('SEED_TEST_PASS', 'test2026!'),
+            ]);
+        }
 
         $seedFriend = strtolower((string) env('SEED_FRIEND', ''));
         foreach ($this->friends as $key => $friend) {
