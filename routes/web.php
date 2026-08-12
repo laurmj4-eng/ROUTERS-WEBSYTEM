@@ -4,6 +4,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/up', fn () => response()->json(['status' => 'ok']));
 
+Route::get('/login', fn () => redirect('/'))->name('login');
+
 Route::get('/diag', function () {
     $out = ['debug' => config('app.debug'), 'driver' => config('database.default')];
 
