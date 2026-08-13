@@ -202,30 +202,20 @@ class LpbController extends Controller
     }
 
     /**
-     * Adds time to an LPB client session using the negative-minute sconvert
-     * trick: POST /admin/index?sconvert=1 with a negative amountminutes
-     * (-days x 1440). Works over a relay tunnel — no agent needed.
-     * When a MAC is provided, the portal admin session is used instead to
-     * credit exactly that device (exec=addtime), so the phone gets the time.
+     * Adds time to the current LPB client session using the negative-minute
+     * sconvert trick: POST /admin/index?sconvert=1 with a negative
+     * amountminutes (-days x 1440). Works over a relay tunnel — no agent needed.
+     * To credit a specific phone, use the public customer page (/lpb/add),
+     * which sends the request from the phone's own browser.
      */
     public function addTime(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'days' => 'required|integer|min:1|max:3650',
-            'mac'  => 'nullable|string|regex:/^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/',
         ]);
-
-        $mac = null;
-        if (! empty($validated['mac'])) {
-            $mac = strtoupper(str_replace('-', ':', $validated['mac']));
-        }
 
         $base = rtrim(Relay::get('lpb'), '/');
         $amountMinutes = -($validated['days'] * 1440);
-
-        if ($mac) {
-            return $this->addTimeByMac($base, $mac, $validated['days']);
-        }
 
         try {
             $http = Http::timeout(10)->withHeaders([
@@ -269,197 +259,6 @@ class LpbController extends Controller
             'days'           => $validated['days'],
             'amount_minutes' => $amountMinutes,
         ]);
-    }
-
-    /**
-     * Credits a specific device (by MAC) using the portal's admin panel:
-     * admin login (captcha accepted) -> client list (MAC -> IP) ->
-     * exec=addtime with the client's IP + MAC. Returns the device's
-     * remaining time before/after as proof.
-     */
-    private function addTimeByMac(string $base, string $mac, int $days): JsonResponse
-    {
-        $username = Cache::get('lpb_admin_user', '');
-        $password = Cache::get('lpb_admin_pass', '');
-
-        if ($username === '' || $password === '') {
-            return response()->json([
-                'success' => false,
-                'message' => 'Admin login for MAC add-time is not configured — set the username/password in the LPB admin card.',
-            ], 422);
-        }
-
-        try {
-            $http = Http::timeout(10)->withHeaders([
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            ]);
-
-            $loginPage = $http->get($base.'/admin/index');
-            $cookies = $this->extractCookies($loginPage->headers());
-
-            $login = $http->asForm()->withHeaders(['Cookie' => $cookies])
-                ->post($base.'/admin/index?execute=1&exec=login', [
-                    'username' => $username,
-                    'password' => $password,
-                    'captcha'  => '',
-                ]);
-
-            if (trim($login->body()) !== 'success') {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'LPB admin login failed — check the admin username/password. ('.mb_substr(trim($login->body()), 0, 120).')',
-                ], 502);
-            }
-
-            $cookies = $this->mergeCookies($cookies, $login->headers());
-
-            $list = $http->withHeaders(['Cookie' => $cookies])
-                ->get($base.'/admin/index?action=apiuserlist.js');
-
-            $client = $this->findClientByMac($list->body(), $mac);
-            if (! $client) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Device '.$mac.' is not connected to the LPB portal right now. Connect the phone to the WiFi first, open 10.0.0.1 once, then retry.',
-                ], 422);
-            }
-
-            $before = (int) ($client['time'] ?? 0);
-
-            $add = $http->asForm()->withHeaders(['Cookie' => $cookies])
-                ->post($base.'/admin/index?execute=1&exec=addtime', [
-                    'ipa'     => $client['ip'],
-                    'mac'     => $mac,
-                    'minutes' => 0,
-                    'hours'   => 0,
-                    'days'    => $days,
-                    'end'     => '',
-                ]);
-
-            $after = $before;
-            if (trim($add->body()) === '1') {
-                $list2 = $http->withHeaders(['Cookie' => $cookies])
-                    ->get($base.'/admin/index?action=apiuserlist.js');
-                $client2 = $this->findClientByMac($list2->body(), $mac);
-                $after = (int) ($client2['time'] ?? $before);
-            }
-
-            $added = ($after - $before) / 60;
-            $ok = trim($add->body()) === '1';
-
-            return response()->json([
-                'success'         => $ok,
-                'message'         => $ok
-                    ? 'Added '.$days.' days to '.$mac.'. Remaining: '.$this->fmtSeconds($after).($added > 0 ? ' (+'.round($added).' min)' : '').'.'
-                    : 'LPB admin rejected the request ('.mb_substr(trim($add->body()), 0, 120).').',
-                'mac'             => $mac,
-                'days'            => $days,
-                'remaining_before' => $before,
-                'remaining_after'  => $after,
-                'added_minutes'   => $added,
-            ], $ok ? 200 : 502);
-        } catch (\Throwable $e) {
-            Log::warning('LPB MAC add time failed: '.$e->getMessage());
-
-            return response()->json([
-                'success' => false,
-                'message' => Relay::isDefault('lpb')
-                    ? 'LPB device unreachable — set your tunnel URL in the Relay / Target card.'
-                    : 'LPB device unreachable via tunnel ('.$e->getMessage().')',
-            ], 502);
-        }
-    }
-
-    public function adminCreds(Request $request): JsonResponse
-    {
-        if ($request->isMethod('post')) {
-            $validated = $request->validate([
-                'username' => 'required|string|max:64',
-                'password' => 'required|string|max:128',
-            ]);
-
-            Cache::put('lpb_admin_user', $validated['username'], now()->addDays(30));
-            Cache::put('lpb_admin_pass', $validated['password'], now()->addDays(30));
-
-            return response()->json(['success' => true]);
-        }
-
-        return response()->json([
-            'success'  => true,
-            'username' => Cache::get('lpb_admin_user', ''),
-            'password' => Cache::get('lpb_admin_pass', '') !== '' ? '********' : '',
-        ]);
-    }
-
-    private function findClientByMac(string $body, string $mac): ?array
-    {
-        try {
-            $data = json_decode($body, true);
-            $rows = $data['data'] ?? [];
-        } catch (\Throwable $e) {
-            return null;
-        }
-
-        $needle = strtolower(str_replace(':', '', $mac));
-        foreach ($rows as $row) {
-            $cell = html_entity_decode((string) ($row['ipmac'] ?? ''), ENT_QUOTES);
-            if (! preg_match('/([0-9a-f]{2}[:-]){5}[0-9a-f]{2}/i', $cell, $m)) {
-                continue;
-            }
-            $rowMac = strtolower(str_replace(':', '', $m[1]));
-            if ($rowMac !== $needle) {
-                continue;
-            }
-
-            if (preg_match('/(\d{1,3}(?:\.\d{1,3}){3})/', $cell, $ip)) {
-                return [
-                    'ip'   => $ip[1],
-                    'time' => (int) ($row['time'] ?? 0),
-                ];
-            }
-        }
-
-        return null;
-    }
-
-    private function mergeCookies(string $existing, array $headers): string
-    {
-        $merged = [];
-        foreach (explode('; ', $existing) as $pair) {
-            if (str_contains($pair, '=')) {
-                [$k, $v] = explode('=', $pair, 2);
-                $merged[$k] = $v;
-            }
-        }
-        foreach ((array) ($headers['Set-Cookie'] ?? $headers['set-cookie'] ?? []) as $line) {
-            if (preg_match('/^([^=;\s]+)=([^;]*)/', trim($line), $m)) {
-                $merged[$m[1]] = $m[2];
-            }
-        }
-
-        $cookie = '';
-        foreach ($merged as $name => $value) {
-            $cookie .= ($cookie ? '; ' : '').$name.'='.$value;
-        }
-
-        return $cookie;
-    }
-
-    private function fmtSeconds(int $seconds): string
-    {
-        $days = intdiv($seconds, 86400);
-        $hours = intdiv($seconds % 86400, 3600);
-        $minutes = intdiv($seconds % 3600, 60);
-        $parts = [];
-        if ($days) {
-            $parts[] = $days.'d';
-        }
-        if ($hours) {
-            $parts[] = $hours.'h';
-        }
-        $parts[] = $minutes.'m';
-
-        return implode(' ', $parts);
     }
 
     private function extractCookies(array $headers): string

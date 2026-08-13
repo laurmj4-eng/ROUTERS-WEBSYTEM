@@ -17,23 +17,23 @@
             </div>
         </div>
 
+        <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px;margin-bottom:20px">
+            <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:8px">&#128241; Customer Page (for phones)</div>
+            <div class="password-hint" style="margin-bottom:12px">Send this link to the customer. They open it on their phone (connected to the LPB WiFi), pick the days and press GO — the time is added to their own phone session, not the PC.</div>
+            <a class="btn-scan" href="{{ url('/lpb/add') }}" target="_blank" style="width:100%;justify-content:center;margin-top:12px;text-decoration:none">
+                <span class="btn-text">Open Customer Add-Time Page</span>
+            </a>
+        </div>
+
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
             <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px">
-                <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:16px">&#9203; Add Time</div>
+                <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:16px">&#9203; Add Time (This PC)</div>
                 <div class="form-group">
                     <label>Days to Add</label>
                     <input type="number" id="lpbAddDays" min="1" value="500" placeholder="e.g. 500">
                 </div>
-                <div class="form-group">
-                    <label>Device MAC (optional)</label>
-                    <input type="text" id="lpbAddMac" placeholder="e.g. A4:5E:60:B2:3C:9D" style="text-transform:uppercase">
-                    <div class="password-hint">With a MAC: credits that device via the portal admin (set Admin Login below). Empty = current device (PC session) via the negative-minute trick. No tunnel needed for MAC mode? It still uses it — keep the tunnel URL set.</div>
-                    <a class="btn-scan" href="{{ url('/lpb/add') }}" target="_blank" style="width:100%;justify-content:center;margin-top:12px;text-decoration:none">
-                        <span class="btn-text">&#128241; Customer page: Add Time to THIS phone</span>
-                    </a>
-                </div>
                 <button class="btn-primary" id="btnLpbAddTime" onclick="lpbAddTime()" style="width:100%">Add Time</button>
-                <div class="password-hint" style="margin-top:8px">Uses the negative-minute trick via <code>sconvert</code>. 500 days = -720000 minutes. Requires the tunnel URL set in the Relay / Target card above.</div>
+                <div class="password-hint" style="margin-top:8px">Adds time to the current PC session via the negative-minute trick. Requires the tunnel URL set in the Relay / Target card.</div>
             </div>
 
             <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px">
@@ -52,14 +52,12 @@
                     <span class="spinner"></span>
                     <span class="btn-text">Convert My Current Time (7200 min)</span>
                 </button>
-                <div class="password-hint" style="margin-top:8px">Immediately converts the current balance into a voucher via <code>POST /admin/index?sconvert=1</code> with <code>amountminutes=7200</code>.</div>
             </div>
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
             <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px">
                 <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:16px">&#128279; Connection</div>
-                <div class="password-hint" style="margin-bottom:12px">Add Time, Scan Password and Convert My Current Time run directly through the tunnel URL above. Connect / multi-voucher conversion still need the local agent's Puppeteer browser.</div>
                 <button class="btn-scan" id="btnLpbConnect" onclick="lpbConnect()" style="width:100%;justify-content:center">
                     <span class="btn-text">Connect</span>
                 </button>
@@ -79,82 +77,11 @@
                 </div>
             </div>
         </div>
-
-        <div style="display:grid;grid-template-columns:1fr;gap:20px;margin-top:20px">
-            <div style="background:#0f172a;border:1px solid #334155;border-radius:12px;padding:20px">
-                <div style="font-size:15px;font-weight:600;color:#f1f5f9;margin-bottom:16px">&#128273; Admin Login (for MAC Add Time)</div>
-                <div class="password-hint" style="margin-bottom:12px">Used to credit a specific device by MAC. Get the credentials with Scan Password above (or from your portal). Saved on the server.</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" id="lpbAdminUser" autocomplete="off">
-                    </div>
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="lpbAdminPass" autocomplete="off">
-                    </div>
-                </div>
-                <button class="btn-primary" id="btnLpbAdminSave" onclick="lpbSaveAdminCreds()" style="width:100%">Save Admin Login</button>
-            </div>
-        </div>
     </div>
 </div>
 
 <script>
     let lpbVouchers = [];
-
-    const lpbMacInput = document.getElementById('lpbAddMac');
-    if (lpbMacInput) {
-        lpbMacInput.value = localStorage.getItem('lpb_mac') || '';
-        lpbMacInput.addEventListener('input', () => {
-            localStorage.setItem('lpb_mac', lpbMacInput.value.trim());
-        });
-    }
-
-    async function lpbLoadAdminCreds() {
-        try {
-            const res = await lpbFetch('/lpb/admin-creds');
-            const data = await res.json();
-            if (data.success) {
-                document.getElementById('lpbAdminUser').value = data.username || '';
-                document.getElementById('lpbAdminPass').value = data.password === '********' ? '' : (data.password || '');
-                document.getElementById('lpbAdminPass').placeholder = data.username ? 'Saved (unchanged)' : 'e.g. admin';
-            }
-        } catch (err) {
-            console.error('Failed to load LPB admin creds:', err);
-        }
-    }
-
-    async function lpbSaveAdminCreds() {
-        const btn = document.getElementById('btnLpbAdminSave');
-        const username = document.getElementById('lpbAdminUser').value.trim();
-        const password = document.getElementById('lpbAdminPass').value;
-        if (!username || !password) {
-            showToast('Enter both username and password.', 'error');
-            return;
-        }
-        btn.disabled = true;
-        btn.textContent = 'Saving...';
-        try {
-            const res = await lpbFetch('/lpb/admin-creds', {
-                method: 'POST',
-                body: JSON.stringify({ username, password })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast('Admin login saved.');
-                lpbLoadAdminCreds();
-            } else {
-                showToast(data.message || 'Failed to save.', 'error');
-            }
-        } catch (err) {
-            showToast('Connection error: ' + err.message, 'error');
-        }
-        btn.disabled = false;
-        btn.textContent = 'Save Admin Login';
-    }
-
-    lpbLoadAdminCreds();
 
     function lpbFetch(url, options = {}) {
         return fetch(`/api${url}`, {
@@ -275,12 +202,9 @@
         btn.disabled = true;
         btn.textContent = 'Adding time...';
         try {
-            const mac = (localStorage.getItem('lpb_mac') || '').trim();
-            const body = { days };
-            if (mac) body.mac = mac;
             const res = await lpbFetch('/lpb/add-time', {
                 method: 'POST',
-                body: JSON.stringify(body)
+                body: JSON.stringify({ days })
             });
             const data = await res.json();
             if (data.success) {
