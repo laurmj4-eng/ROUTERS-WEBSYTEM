@@ -43,7 +43,7 @@ cloudflared tunnel --url http://localhost:8787 >"$LOG" 2>&1 &
 TUN_PID=$!
 echo "Waiting for cloudflared URL (up to 40s)..."
 for i in $(seq 1 40); do
-  URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG" | tail -1)
+  URL=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG" | grep -v 'https://api\.' | tail -1)
   [ -n "$URL" ] && break
   if ! kill -0 $TUN_PID 2>/dev/null; then
     echo "cloudflared exited (this network may block Cloudflare)."

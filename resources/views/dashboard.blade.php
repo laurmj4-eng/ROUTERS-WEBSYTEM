@@ -526,12 +526,12 @@
             </div>
             <div class="form-row">
                 <div class="form-group" style="margin-bottom:0;flex:3;">
-                    <input id="relayUrl" placeholder="https://xxx.trycloudflare.com/3rdlaravel/public" />
+                    <input id="relayUrl" placeholder="https://xxx.trycloudflare.com" />
                     <div class="password-hint">
                         @if ($tools === 'lpb' || $tools === 'adu')
                             Paste the tunnel URL from your phone (cloudflared) that exposes the piso portal @ 10.0.0.1.
                         @else
-                            Paste the tunnel URL from your shop machine (cloudflared) that exposes this app, so the hosted site can reach the router @ 192.168.1.1. Run: <code>cloudflared tunnel --url http://localhost</code> — must include the full app path (<code>/3rdlaravel/public</code>).
+                            Paste the tunnel URL from your shop machine (cloudflared) that exposes the phone-agent relay, so the hosted site can reach the router @ 192.168.1.1. Run: <code>cloudflared tunnel --url http://127.0.0.1:8787</code> — bare URL, no path (the phone-agent serves its own root).
                         @endif
                     </div>
                 </div>
@@ -783,7 +783,7 @@
         if (!reachable) {
             badge.textContent = 'Not reachable';
             badge.className = 'badge badge-red';
-            results.innerHTML = `<div class="empty-state">${esc(ckMessage || `Cannot reach ${routerIp}. If you are using the hosted site: check the Relay / Target URL (must be the full tunnel URL ending in /3rdlaravel/public) and that cloudflared is running on the shop machine.`)}</div>`;
+            results.innerHTML = `<div class="empty-state">${esc(ckMessage || `Cannot reach ${routerIp}. If you are using the hosted site: check the Relay / Target URL (must be the bare tunnel URL, e.g. https://xxx.trycloudflare.com, no path) and that the relay + cloudflared are running on the shop machine.`)}</div>`;
             btn.disabled = false;
             btn.classList.remove('loading');
             btnText.textContent = 'Scan WiFi Passwords';

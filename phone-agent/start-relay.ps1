@@ -80,8 +80,8 @@ for ($i = 0; $i -lt 60; $i++) {
     foreach ($f in @('tunnel.err.log', 'tunnel.log')) {
         if (Test-Path (Join-Path $root $f)) { $log += Get-Content (Join-Path $root $f) -Raw }
     }
-    $m = [regex]::Match($log, 'https://[a-z0-9-]+\.trycloudflare\.com')
-    if ($m.Success) { $url = $m.Value; break }
+    $m = [regex]::Matches($log, 'https://(?!api\.)[a-z0-9-]+\.trycloudflare\.com')
+    if ($m.Count -gt 0) { $url = $m[$m.Count - 1].Value; break }
 }
 if (-not $url) {
     Write-Host 'ERROR: no tunnel URL within 60s. Check tunnel.err.log' -ForegroundColor Red
