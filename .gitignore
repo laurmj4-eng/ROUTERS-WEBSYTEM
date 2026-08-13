@@ -50,6 +50,7 @@ tulog_wifi_db.sqlite
 pkg/
 scan-ui/
 tools/reports/
+tools/
 advanced_probe.py
 bypass_probe.py
 deep_probe.py

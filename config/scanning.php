@@ -33,4 +33,8 @@ return [
     'adu_url' => env('ADU_URL', 'http://10.0.0.1'),
 
     'pldt_url' => env('PLDT_URL', 'http://192.168.1.1'),
+
+    'relay' => [
+        'token' => env('RELAY_TOKEN'),
+    ],
 ];

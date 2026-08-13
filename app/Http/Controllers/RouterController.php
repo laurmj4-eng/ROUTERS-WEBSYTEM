@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Relay;
 use App\Events\RouterActionTriggered;
 use App\Models\CredentialScanResult;
 use App\Models\RouterCredential;
@@ -10,6 +11,7 @@ use App\Models\RouterStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -179,6 +181,13 @@ class RouterController extends Controller
     public function checkRouterConnection(Request $request): JsonResponse
     {
         $routerIp = $request->input('router_ip') ?: '192.168.1.1';
+
+        // Hosted (Render) servers cannot reach the LAN router — when the local
+        // scan script is absent, proxy the check through the tunnel to the shop machine.
+        if (! is_file(base_path('local-agent/puppeteer/wifi_scan_cli.js'))) {
+            return $this->proxyViaRelay('/api/relay/pldt/check-connection', $request, $routerIp, 15);
+        }
+
         $host = gethostbyname($routerIp);
 
         foreach ([443, 80] as $port) {
@@ -214,10 +223,56 @@ class RouterController extends Controller
         $scriptPath = base_path('local-agent/puppeteer/wifi_scan_cli.js');
 
         if (! is_file($scriptPath)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Wifi scan script not installed on this server — this tool runs on your shop machine.',
-            ], 502);
+            // Hosted (Render) server: run the scan on the shop machine via the tunnel
+            $relay = $this->relayPost('/api/relay/pldt/wifi-scan', $validated, 120);
+
+            if ($relay === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This tool must run from your shop machine on the router\'s network, or via the tunnel from it. Open the Relay / Target card and set your tunnel URL (run `cloudflared tunnel --url http://localhost` on the shop machine), or use the local dashboard.',
+                ], 502);
+            }
+
+            $body = $relay['body'];
+
+            if (($body['success'] ?? false) && $relay['status'] < 400) {
+                $log = RouterLog::create([
+                    'action_type'  => 'wifi_password_scan',
+                    'payload'      => json_encode([
+                        'username'  => $validated['username'],
+                        'router_ip' => $routerIp,
+                        'via'       => 'relay',
+                    ]),
+                    'status'       => 'success',
+                    'triggered_by' => request()->ip(),
+                ]);
+
+                foreach (($body['data'] ?? []) as $entry) {
+                    if (empty($entry['band'])) continue;
+
+                    \App\Models\WifiPassword::create([
+                        'ssid'           => $entry['ssid'] ?? null,
+                        'password'       => $entry['password'] ?? null,
+                        'band'           => $entry['band'],
+                        'router_ip'      => $routerIp,
+                        'encryption'     => $entry['encryption'] ?? null,
+                        'authentication' => $entry['authentication'] ?? null,
+                        'scanned_at'     => now(),
+                    ]);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'log_id'  => $log->id,
+                    'data'    => $body['data'] ?? [],
+                    'elapsed' => $body['elapsed'] ?? null,
+                ]);
+            }
+
+            return response()->json(
+                $body ?: ['success' => false, 'message' => 'Tunnel scan failed.'],
+                $relay['status'] >= 400 ? $relay['status'] : 500
+            );
         }
 
         $escUser   = escapeshellarg($validated['username']);
@@ -699,6 +754,57 @@ class RouterController extends Controller
             if (is_array($decoded)) return $decoded;
         }
         return null;
+    }
+
+    /**
+     * POST a payload through the PLDT relay tunnel to the shop machine.
+     * Returns null when no tunnel URL is configured.
+     */
+    private function relayPost(string $path, array $payload, int $timeout): ?array
+    {
+        if (Relay::isDefault('pldt')) {
+            return null;
+        }
+
+        $base = rtrim(Relay::get('pldt'), '/');
+
+        try {
+            $response = Http::timeout($timeout)
+                ->withHeaders([
+                    'X-Relay-Token' => (string) config('scanning.relay.token'),
+                    'Accept'        => 'application/json',
+                ])
+                ->post($base . $path, $payload);
+
+            return [
+                'status' => $response->status(),
+                'body'   => $response->json() ?: [],
+            ];
+        } catch (\Throwable $e) {
+            Log::warning('RelayPldtProxy failed: ' . $e->getMessage());
+
+            return [
+                'status' => 502,
+                'body'   => [
+                    'success' => false,
+                    'message' => 'Tunnel unreachable — is cloudflared running on the shop machine? (' . $e->getMessage() . ')',
+                ],
+            ];
+        }
+    }
+
+    private function proxyViaRelay(string $path, Request $request, string $routerIp, int $timeout): JsonResponse
+    {
+        $relay = $this->relayPost($path, ['router_ip' => $routerIp], $timeout);
+
+        if ($relay === null) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This tool must run from your shop machine on the router\'s network, or via the tunnel from it. Open the Relay / Target card and set your tunnel URL (run `cloudflared tunnel --url http://localhost` on the shop machine), or use the local dashboard.',
+            ], 502);
+        }
+
+        return response()->json($relay['body'], $relay['status']);
     }
 
     public function getDiscoveryStatus(string $id): JsonResponse

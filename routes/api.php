@@ -6,6 +6,7 @@ use App\Http\Controllers\BruteForceController;
 use App\Http\Controllers\LpbController;
 use App\Http\Controllers\NetworkScanController;
 use App\Http\Controllers\RelayController;
+use App\Http\Controllers\RelayPldtController;
 use App\Http\Controllers\RouterController;
 use App\Http\Controllers\RouterRotationController;
 use App\Http\Controllers\TulogScanController;
@@ -16,6 +17,12 @@ use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::post('/auth/login', [AuthController::class, 'login']);
+
+// PLDT relay endpoints — reached via the cloudflared tunnel from the hosted
+// (Render) site, which cannot reach 192.168.1.1. PUBLIC on purpose; guarded
+// by the shared X-Relay-Token header (config scanning.relay.token).
+Route::post('/relay/pldt/check-connection', [RelayPldtController::class, 'checkConnection']);
+Route::post('/relay/pldt/wifi-scan', [RelayPldtController::class, 'wifiScan']);
 
 // All other routes require a session (dashboard) or a Sanctum token (local agent)
 Route::middleware('auth:sanctum')->group(function () {

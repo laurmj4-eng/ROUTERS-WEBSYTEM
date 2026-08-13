@@ -526,12 +526,12 @@
             </div>
             <div class="form-row">
                 <div class="form-group" style="margin-bottom:0;flex:3;">
-                    <input id="relayUrl" placeholder="{{ $tools === 'lpb' || $tools === 'adu' ? 'https://xxx.trycloudflare.com' : ($tools === 'pldt' ? 'http://192.168.1.1' : '') }}" />
+                    <input id="relayUrl" placeholder="https://xxx.trycloudflare.com" />
                     <div class="password-hint">
                         @if ($tools === 'lpb' || $tools === 'adu')
                             Paste the tunnel URL from your phone (cloudflared) that exposes the piso portal @ 10.0.0.1.
                         @else
-                            Router IP for the PLDT management interface.
+                            Paste the tunnel URL from your shop machine (cloudflared) that exposes this app, so the hosted site can reach the router @ 192.168.1.1. Run: <code>cloudflared tunnel --url http://localhost</code>
                         @endif
                     </div>
                 </div>
@@ -729,6 +729,7 @@
             </div>`;
 
         let reachable = false;
+        let ckMessage = '';
         try {
             const ck = await fetch(`${API_BASE}/router/check-connection`, {
                 method: 'POST',
@@ -737,6 +738,7 @@
             });
             const ckData = await ck.json();
             reachable = !!ckData.success;
+            ckMessage = ckData.message || '';
         } catch (err) {
             reachable = false;
         }
@@ -744,7 +746,7 @@
         if (!reachable) {
             badge.textContent = 'Not reachable';
             badge.className = 'badge badge-red';
-            results.innerHTML = `<div class="empty-state">Cannot reach ${routerIp}. Make sure you are connected to the router's network, then try again.</div>`;
+            results.innerHTML = `<div class="empty-state">${esc(ckMessage || `Cannot reach ${routerIp}. Make sure you are connected to the router's network, then try again.`)}</div>`;
             btn.disabled = false;
             btn.classList.remove('loading');
             btnText.textContent = 'Scan WiFi Passwords';
