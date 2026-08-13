@@ -26,6 +26,8 @@ Route::post('/relay/pldt/wifi-scan', [RelayPldtController::class, 'wifiScan']);
 
 // All other routes require a session (dashboard) or a Sanctum token (local agent)
 Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/router/relay-test', [RouterController::class, 'testRelayConnection']);
+
     Route::get('/router/logs', function (Request $request): JsonResponse {
         $perPage = min((int) $request->input('per_page', 10), 50);
         $page = max((int) $request->input('page', 1), 1);

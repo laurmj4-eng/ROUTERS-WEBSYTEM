@@ -776,9 +776,22 @@ class RouterController extends Controller
                 ])
                 ->post($base . $path, $payload);
 
+            $status = $response->status();
+            $json = $response->json();
+
+            if (! is_array($json)) {
+                return [
+                    'status' => $status,
+                    'body'   => [
+                        'success' => false,
+                        'message' => 'Tunnel answered HTTP ' . $status . ' with no JSON — check the Relay / Target URL: it must be the full app URL, e.g. https://xxx.trycloudflare.com/3rdlaravel/public',
+                    ],
+                ];
+            }
+
             return [
-                'status' => $response->status(),
-                'body'   => $response->json() ?: [],
+                'status' => $status,
+                'body'   => $json,
             ];
         } catch (\Throwable $e) {
             Log::warning('RelayPldtProxy failed: ' . $e->getMessage());
@@ -805,6 +818,62 @@ class RouterController extends Controller
         }
 
         return response()->json($relay['body'], $relay['status']);
+    }
+
+    /**
+     * Live test of a candidate tunnel URL typed in the Relay / Target card:
+     * reach the relay executor through it (token stays on the server).
+     */
+    public function testRelayConnection(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'url' => 'required|string|max:255',
+        ]);
+
+        $url = rtrim($validated['url'], '/');
+
+        if (! preg_match('#^https?://#i', $url)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tunnel URL must start with http:// or https://',
+            ], 422);
+        }
+
+        try {
+            $response = Http::timeout(15)
+                ->withHeaders([
+                    'X-Relay-Token' => (string) config('scanning.relay.token'),
+                    'Accept'        => 'application/json',
+                ])
+                ->post($url . '/api/relay/pldt/check-connection', ['router_ip' => '192.168.1.1']);
+
+            $status = $response->status();
+            $json = $response->json();
+
+            if (! is_array($json)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Tunnel answered HTTP ' . $status . ' with no JSON — the URL is missing the app path (must end with /3rdlaravel/public).',
+                ]);
+            }
+
+            if (($json['success'] ?? false)) {
+                return response()->json([
+                    'success' => true,
+                    'message' => 'Router reachable through the tunnel on port ' . ($json['port'] ?? '?') . '.',
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'message' => $json['message'] ?? 'Tunnel reached the shop machine, but the router check failed.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tunnel unreachable — is cloudflared running on the shop machine? (' . $e->getMessage() . ')',
+            ], 502);
+        }
     }
 
     public function getDiscoveryStatus(string $id): JsonResponse

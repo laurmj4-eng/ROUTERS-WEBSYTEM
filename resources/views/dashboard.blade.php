@@ -526,16 +526,19 @@
             </div>
             <div class="form-row">
                 <div class="form-group" style="margin-bottom:0;flex:3;">
-                    <input id="relayUrl" placeholder="https://xxx.trycloudflare.com" />
+                    <input id="relayUrl" placeholder="https://xxx.trycloudflare.com/3rdlaravel/public" />
                     <div class="password-hint">
                         @if ($tools === 'lpb' || $tools === 'adu')
                             Paste the tunnel URL from your phone (cloudflared) that exposes the piso portal @ 10.0.0.1.
                         @else
-                            Paste the tunnel URL from your shop machine (cloudflared) that exposes this app, so the hosted site can reach the router @ 192.168.1.1. Run: <code>cloudflared tunnel --url http://localhost</code>
+                            Paste the tunnel URL from your shop machine (cloudflared) that exposes this app, so the hosted site can reach the router @ 192.168.1.1. Run: <code>cloudflared tunnel --url http://localhost</code> — must include the full app path (<code>/3rdlaravel/public</code>).
                         @endif
                     </div>
                 </div>
                 <div class="form-group" style="margin-bottom:0;flex:1;">
+                    @if ($tools === 'pldt')
+                        <button class="btn-secondary" id="btnRelayTest" onclick="testRelay()" style="margin-right:8px;">Test</button>
+                    @endif
                     <button class="btn-primary" id="btnRelaySave" onclick="saveRelay()">Save target</button>
                 </div>
             </div>
@@ -653,6 +656,40 @@
         btn.textContent = 'Save target';
     }
 
+    async function testRelay() {
+        const btn = document.getElementById('btnRelayTest');
+        const badge = document.getElementById('relayStatus');
+        const url = document.getElementById('relayUrl').value.trim();
+        if (!url) { showToast('Paste the tunnel URL first.', 'error'); return; }
+        btn.disabled = true;
+        btn.textContent = 'Testing...';
+        badge.textContent = 'Testing tunnel...';
+        badge.className = 'badge badge-blue';
+        try {
+            const res = await fetch(`${API_BASE}/router/relay-test`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-XSRF-TOKEN': decodeURIComponent((document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]+)/) || [])[1] || '') },
+                body: JSON.stringify({ url })
+            });
+            const data = await res.json();
+            if (data.success) {
+                badge.textContent = 'OK — router reachable';
+                badge.className = 'badge badge-green';
+                showToast(data.message || 'Tunnel works.');
+            } else {
+                badge.textContent = 'Test failed';
+                badge.className = 'badge badge-red';
+                showToast(data.message || 'Tunnel test failed.', 'error');
+            }
+        } catch (err) {
+            badge.textContent = 'Test failed';
+            badge.className = 'badge badge-red';
+            showToast('Connection error: ' + err.message, 'error');
+        }
+        btn.disabled = false;
+        btn.textContent = 'Test';
+    }
+
     // --- Toast ---
     function showToast(message, type = 'success') {
         const toast = document.getElementById('toast');
@@ -746,7 +783,7 @@
         if (!reachable) {
             badge.textContent = 'Not reachable';
             badge.className = 'badge badge-red';
-            results.innerHTML = `<div class="empty-state">${esc(ckMessage || `Cannot reach ${routerIp}. Make sure you are connected to the router's network, then try again.`)}</div>`;
+            results.innerHTML = `<div class="empty-state">${esc(ckMessage || `Cannot reach ${routerIp}. If you are using the hosted site: check the Relay / Target URL (must be the full tunnel URL ending in /3rdlaravel/public) and that cloudflared is running on the shop machine.`)}</div>`;
             btn.disabled = false;
             btn.classList.remove('loading');
             btnText.textContent = 'Scan WiFi Passwords';
