@@ -92,9 +92,21 @@ Write-Host "Tunnel URL: $url" -ForegroundColor Green
 # 4. Save it to the live site so the Relay card is always current.
 #    Form-encoded POST: PowerShell 5.1 mangles embedded double quotes when
 #    passing -d JSON to native curl.exe (the data would arrive quote-less).
+#    Fresh trycloudflare URLs take a moment to propagate in DNS (the live
+#    site verifies the URL before accepting it) — retry up to 5x.
 $token = $cfg.relay_token
-$post = & curl.exe -s -X POST -H "X-Relay-Token: $token" -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode "url=$url" "$liveSite/api/relay/pldt/tunnel-url"
-Write-Host "Saved to live site: $post" -ForegroundColor DarkGray
+$post = ''
+for ($attempt = 1; $attempt -le 5; $attempt++) {
+    $post = & curl.exe -s -X POST -H "X-Relay-Token: $token" -H 'Content-Type: application/x-www-form-urlencoded' --data-urlencode "url=$url" "$liveSite/api/relay/pldt/tunnel-url"
+    Write-Host "  save attempt $attempt : $post" -ForegroundColor DarkGray
+    if ($post -match '"success":true') { break }
+    Start-Sleep -Seconds 10
+}
+if ($post -notmatch '"success":true') {
+    Write-Host 'WARNING: could not save the tunnel URL to the live site yet. Paste it manually in the Relay / Target card, or re-run this script.' -ForegroundColor Yellow
+} else {
+    Write-Host 'Saved to live site.' -ForegroundColor DarkGray
+}
 
 Write-Host ''
 Write-Host 'Relay is live. Scans work from the live site now.' -ForegroundColor Green

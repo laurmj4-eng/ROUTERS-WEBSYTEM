@@ -77,10 +77,19 @@ fi
 echo "=================================================="
 echo " Tunnel URL: $URL"
 echo " Saving to live site ($LIVE)..."
-SAVE=$(curl -s -X POST -H "X-Relay-Token: $TOKEN" \
-  -H "Content-Type: application/x-www-form-urlencoded" \
-  --data-urlencode "url=$URL" "$LIVE/api/relay/pldt/tunnel-url")
-echo " Save response: $SAVE"
+SAVE=""
+for attempt in 1 2 3 4 5; do
+  SAVE=$(curl -s -X POST -H "X-Relay-Token: $TOKEN" \
+    -H "Content-Type: application/x-www-form-urlencoded" \
+    --data-urlencode "url=$URL" "$LIVE/api/relay/pldt/tunnel-url")
+  echo " Save attempt $attempt: $SAVE"
+  case "$SAVE" in *'"success":true'*) break ;; esac
+  sleep 10
+done
+case "$SAVE" in
+  *'"success":true'*) echo " Saved to live site." ;;
+  *) echo " WARNING: could not save the URL yet. Paste it manually in the Relay / Target card, or re-run this script." ;;
+esac
 echo "=================================================="
 echo " Relay is live — scans from the live site now reach this phone."
 echo " Keep Termux open (wake lock active). Ctrl+C stops."

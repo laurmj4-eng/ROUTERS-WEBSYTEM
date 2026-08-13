@@ -56,16 +56,34 @@ class Relay
         }
 
         try {
-            $resp = Http::timeout(8)->post(rtrim($url, '/') . '/health');
-            $data = $resp->json();
+            // Fresh trycloudflare hostnames can take a bit to propagate in DNS;
+            // Render's resolver may briefly cache a negative result. Retry the
+            // health check across ~30s before giving up.
+            $attempts = [0, 5, 10, 15];
+            $lastError = null;
 
-            if (! is_array($data) || ($data['agent'] ?? null) !== 'phone-agent') {
-                return 'That URL is not a live phone-agent relay (no phone-agent /health answer). Is the relay + tunnel running?';
+            foreach ($attempts as $i => $delay) {
+                if ($i > 0) {
+                    sleep($delay);
+                }
+
+                try {
+                    $resp = Http::timeout(8)->post(rtrim($url, '/') . '/health');
+                    $data = $resp->json();
+
+                    if (is_array($data) && ($data['agent'] ?? null) === 'phone-agent') {
+                        return null;
+                    }
+
+                    $lastError = 'That URL is not a live phone-agent relay (no phone-agent /health answer). Is the relay + tunnel running?';
+                } catch (\Throwable $e) {
+                    $lastError = 'Could not reach that URL — is the relay + tunnel running? (' . $e->getMessage() . ')';
+                }
             }
+
+            return $lastError ?? 'Could not verify that URL.';
         } catch (\Throwable $e) {
             return 'Could not reach that URL — is the relay + tunnel running? (' . $e->getMessage() . ')';
         }
-
-        return null;
     }
 }
