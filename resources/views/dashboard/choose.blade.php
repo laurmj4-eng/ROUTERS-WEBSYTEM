@@ -72,7 +72,7 @@
             <div class="tile tile-pldt">&#128225;</div>
             <div class="info">
                 <h2>PLDT WiFi Tools</h2>
-                <p>Credential scan, password discovery, config extraction (192.168.1.1)</p>
+                <p>WiFi password scanner via router admin login (192.168.1.1)</p>
             </div>
             <div class="arrow">&#8250;</div>
         </a>
