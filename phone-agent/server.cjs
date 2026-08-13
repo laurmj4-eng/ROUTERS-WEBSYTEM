@@ -83,11 +83,15 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok: true, agent: 'phone-agent', ts: Date.now() });
   }
 
-  if (!authorized(req)) {
+if (!authorized(req)) {
     return send(res, 401, { success: false, message: 'Unauthorized: X-Relay-Token missing or invalid.' });
   }
 
-  if (req.method === 'POST' && url.pathname === '/check-connection') {
+  // The hosted (Render) site proxies to the tunnel using the app's own relay
+  // paths (/api/relay/pldt/*). Accept both spellings.
+  const ep = (url.pathname || '').replace(/^\/api\/relay\/pldt\//, '/');
+
+  if (req.method === 'POST' && ep === '/check-connection') {
     const body = readBody(req);
     const tcp = await tcpCheck(CONFIG.host, CONFIG.port);
     if (!tcp.reachable) {
@@ -97,7 +101,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: scan.success, ip: CONFIG.host, port: CONFIG.port, reachable: true, login: scan, ms: tcp.ms });
   }
 
-  if (req.method === 'POST' && url.pathname === '/wifi-scan') {
+  if (req.method === 'POST' && ep === '/wifi-scan') {
     const raw = await readBody(req);
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = {}; }
@@ -115,7 +119,7 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { success: true, data: (result.wifi || []).map((w) => ({ ...w })), elapsed });
   }
 
-  if (req.method === 'POST' && url.pathname === '/scan-password') {
+  if (req.method === 'POST' && ep === '/scan-password') {
     const raw = await readBody(req);
     let data = {};
     try { data = raw ? JSON.parse(raw) : {}; } catch (e) { data = {}; }
