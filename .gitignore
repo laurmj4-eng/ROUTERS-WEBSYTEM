@@ -35,6 +35,8 @@ wifi-scanner/.scan_rate_log
 wifi-scanner/__pycache__/
 cred-scanner/credentials.db
 cred-scanner/__pycache__/
+phone-agent/config.json
+phone-agent/*.jar
 
 # secrets / certs
 *.pfx

@@ -484,7 +484,7 @@ class RouterController extends Controller
 
     public function scanPassword(Request $request): JsonResponse
     {
-        set_time_limit(120);
+        set_time_limit(200);
 
         $validated = $request->validate([
             'username'  => 'required|string|max:64',
@@ -496,10 +496,41 @@ class RouterController extends Controller
         $scriptPath = base_path('local-agent/puppeteer/getxml_file.js');
 
         if (! is_file($scriptPath)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Router agent not installed on this server — this tool runs on your shop machine.',
-            ], 502);
+            // Hosted (Render) server: run the scan on the shop machine via the tunnel
+            $relay = $this->relayPost('/api/relay/pldt/scan-password', $validated, 180);
+
+            if ($relay === null) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'This tool must run from your shop machine on the router\'s network, or via the tunnel from it. Open the Relay / Target card and set your tunnel URL, or use the local dashboard.',
+                ], 502);
+            }
+
+            $body = $relay['body'];
+
+            if (($body['success'] ?? false) && $relay['status'] < 400) {
+                RouterLog::create([
+                    'action_type'  => 'config_password_scan',
+                    'payload'      => json_encode([
+                        'username'  => $validated['username'],
+                        'router_ip' => $routerIp,
+                        'via'       => 'relay',
+                    ]),
+                    'status'       => 'success',
+                    'triggered_by' => request()->ip(),
+                ]);
+
+                return response()->json([
+                    'success' => true,
+                    'data'    => $body['data'] ?? [],
+                    'elapsed' => $body['elapsed'] ?? null,
+                ]);
+            }
+
+            return response()->json(
+                $body ?: ['success' => false, 'message' => 'Tunnel scan failed.'],
+                $relay['status'] >= 400 ? $relay['status'] : 500
+            );
         }
 
         $downloadPath = sys_get_temp_dir() . '/psk_' . bin2hex(random_bytes(4));

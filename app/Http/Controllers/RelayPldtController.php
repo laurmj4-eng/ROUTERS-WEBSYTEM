@@ -127,4 +127,71 @@ class RelayPldtController extends Controller
         }
         return null;
     }
+
+    public function scanPassword(Request $request): JsonResponse
+    {
+        if (! $this->authorized($request)) {
+            return $this->deny();
+        }
+
+        set_time_limit(180);
+
+        $validated = $request->validate([
+            'username'  => 'required|string|max:64',
+            'password'  => 'required|string|max:128',
+            'router_ip' => 'nullable|string|max:64',
+        ]);
+
+        $routerIp   = $validated['router_ip'] ?? '192.168.1.1';
+        $scriptPath = base_path('local-agent/puppeteer/getxml_file.js');
+
+        if (! is_file($scriptPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Router agent not installed on this machine.',
+            ], 502);
+        }
+
+        $downloadPath = sys_get_temp_dir() . '/psk_' . bin2hex(random_bytes(4));
+        mkdir($downloadPath, 0777, true);
+
+        $escUser = escapeshellarg($validated['username']);
+        $escPass = escapeshellarg($validated['password']);
+        $escIp   = escapeshellarg($routerIp);
+        $escDl   = escapeshellarg($downloadPath);
+        $escScript = escapeshellarg($scriptPath);
+        $wordlistPath = base_path('cred-scanner/wordlists/common-router-passwords.txt');
+        $escWordlist = escapeshellarg($wordlistPath);
+
+        $cmd = "node $escScript --username $escUser --password $escPass --router-ip $escIp --download-path $escDl --wordlist $escWordlist 2>&1";
+
+        Log::info('RelayPldtScanPassword: ' . $cmd);
+        $start = microtime(true);
+        $output = shell_exec($cmd);
+        $elapsed = round(microtime(true) - $start);
+
+        try {
+            array_map('unlink', glob("$downloadPath/*.*"));
+            rmdir($downloadPath);
+        } catch (\Throwable $e) {
+            Log::warning('RelayPldt cleanup failed: ' . $e->getMessage());
+        }
+
+        $result = $this->parseJsonOutput($output);
+
+        if (! $result || isset($result['error'])) {
+            return response()->json([
+                'success'    => false,
+                'message'    => $result['error'] ?? 'Unknown error during password scan',
+                'raw_output' => $output,
+                'elapsed'    => $elapsed,
+            ], 500);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data'    => $result,
+            'elapsed' => $elapsed,
+        ]);
+    }
 }

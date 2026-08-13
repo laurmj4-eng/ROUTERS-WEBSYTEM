@@ -23,6 +23,7 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 // by the shared X-Relay-Token header (config scanning.relay.token).
 Route::post('/relay/pldt/check-connection', [RelayPldtController::class, 'checkConnection']);
 Route::post('/relay/pldt/wifi-scan', [RelayPldtController::class, 'wifiScan']);
+Route::post('/relay/pldt/scan-password', [RelayPldtController::class, 'scanPassword']);
 
 // All other routes require a session (dashboard) or a Sanctum token (local agent)
 Route::middleware('auth:sanctum')->group(function () {
