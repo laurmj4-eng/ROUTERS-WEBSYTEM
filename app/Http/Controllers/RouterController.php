@@ -271,7 +271,7 @@ class RouterController extends Controller
 
             return response()->json(
                 $body ?: ['success' => false, 'message' => 'Tunnel scan failed.'],
-                $relay['status'] >= 400 ? $relay['status'] : 500
+                $relay['status']
             );
         }
 
@@ -529,7 +529,7 @@ class RouterController extends Controller
 
             return response()->json(
                 $body ?: ['success' => false, 'message' => 'Tunnel scan failed.'],
-                $relay['status'] >= 400 ? $relay['status'] : 500
+                $relay['status']
             );
         }
 
