@@ -574,6 +574,7 @@
 
     <div class="main-body">
 
+        @if ($tools !== 'lpb')
         <div class="card card-full" style="margin-bottom:20px;padding:20px 24px;">
             <div class="card-title" style="margin-bottom:12px;">
                 <span>&#128279;</span> Relay / Target URL
@@ -595,6 +596,7 @@
                 </div>
             </div>
         </div>
+        @endif
 
         @foreach ($pages as $pg)
             @include($pageView[$pg] ?? 'dashboard.' . $pg)
@@ -1691,7 +1693,7 @@
     }
 
     // --- Init ---
-    loadRelay();
+    if (document.getElementById('relayUrl')) loadRelay();
     navigateTo('{{ $defaultPage }}');
     if (pageTitles['network']) refreshRouterStatus();
     if (pageTitles['scanner']) {
