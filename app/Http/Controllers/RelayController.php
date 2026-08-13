@@ -40,7 +40,13 @@ class RelayController extends Controller
             return response()->json(['success' => true, 'url' => '', 'active' => false]);
         }
 
-        if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
+        if ($family === 'pldt') {
+            $error = Relay::validateRelayUrl($url);
+
+            if ($error !== null) {
+                return response()->json(['success' => false, 'message' => $error], 422);
+            }
+        } elseif (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
             return response()->json(['success' => false, 'message' => 'URL must start with http:// or https://.'], 422);
         }
 

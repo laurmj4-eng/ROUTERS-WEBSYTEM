@@ -52,8 +52,10 @@ class RelayPldtController extends Controller
 
         $url = trim($validated['url']);
 
-        if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
-            return response()->json(['success' => false, 'message' => 'URL must start with http:// or https://.'], 422);
+        $error = Relay::validateRelayUrl($url);
+
+        if ($error !== null) {
+            return response()->json(['success' => false, 'message' => $error], 422);
         }
 
         Relay::set('pldt', $url);
