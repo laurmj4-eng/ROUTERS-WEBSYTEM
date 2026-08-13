@@ -1,11 +1,19 @@
 # Starts the phone-agent relay + cloudflared tunnel and auto-saves the fresh
 # tunnel URL to the live site (/api/relay/pldt/tunnel-url). Double-click
 # start-relay.cmd (or run this) after every PC reboot — no URL pasting needed.
+# -BootDelay: sleep this many seconds before starting (used by the autostart
+# scheduled task so WiFi/internet is up before cloudflared connects).
+param([int]$BootDelay = 0)
 $ErrorActionPreference = 'Continue'
 $root = $PSScriptRoot
 $cfgFile = Join-Path $root 'config.json'
 $cloudflared = 'C:\Program Files (x86)\cloudflared\cloudflared.exe'
 $liveSite = 'https://piso-wifi-tools.onrender.com'
+
+if ($BootDelay -gt 0) {
+    Write-Host "Waiting $BootDelay s for network..." -ForegroundColor DarkGray
+    Start-Sleep -Seconds $BootDelay
+}
 
 if (Test-Path $cfgFile) {
     try { $cfg = Get-Content $cfgFile -Raw | ConvertFrom-Json } catch { }

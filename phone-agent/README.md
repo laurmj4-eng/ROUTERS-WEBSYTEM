@@ -24,6 +24,10 @@ live site (Render)  -->  cloudflared tunnel  -->  phone-agent :8787  -->  router
 - `start-relay.cmd` / `start-relay.ps1` — Windows one-click: starts relay +
   tunnel, then **auto-saves the fresh tunnel URL to the live site** (no
   re-pasting in the Relay card). `stop-relay.cmd` stops both.
+- `install-autostart.cmd` / `uninstall-autostart.cmd` — install/remove the
+  autostart: copies `start-relay-hidden.vbs` into the Windows Startup folder,
+  so the relay starts automatically at every logon (hidden, 45s network
+  delay, no admin needed). Requires the PC to auto-login.
 
 ## Termux setup (first time, on the phone)
 
@@ -58,6 +62,20 @@ automatically (`POST /api/relay/pldt/tunnel-url`, shared token) — nothing to
 paste. Stop with `stop-relay.cmd`.
 
 The PC must stay on the WiFi that reaches the router (`config.json` → `host`).
+
+## Auto-start on boot (optional, Windows)
+
+```bat
+cd C:\xampp\htdocs\3rdlaravel\phone-agent
+install-autostart.cmd
+```
+
+Copies `start-relay-hidden.vbs` into the Windows Startup folder: at every
+logon the relay + tunnel start hidden (45s delay for the network), and the
+fresh tunnel URL is saved to the live site automatically. The PC must boot
+straight into Windows (auto-login). Verify with
+`dir "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\PisoPldtRelay.vbs"`;
+remove with `uninstall-autostart.cmd`.
 
 ## Run (Termux)
 
