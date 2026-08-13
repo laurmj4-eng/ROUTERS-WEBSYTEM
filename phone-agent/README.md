@@ -31,16 +31,22 @@ live site (Render)  -->  cloudflared tunnel  -->  phone-agent :8787  -->  router
 
 ## Termux setup (first time, on the phone)
 
+One paste does everything (installs, clones, configures the token, starts):
+
 ```bash
 pkg update && pkg upgrade -y
-pkg install -y nodejs curl cloudflared termux-api
-termux-wake-lock
+pkg install -y nodejs curl cloudflared termux-api git openssh termux-wake-lock
+git clone --depth 1 https://github.com/laurmj4-eng/ROUTERS-WEBSYTEM.git
+cd ROUTERS-WEBSYTEM/phone-agent
+cp config.example.json config.json
+sed -i 's/CHANGE_ME_to_the_RELAY_TOKEN_from_Render/olyzSW1HpvhjPG4XukxDcaVQ92FqdT3Yme8ObwRABMsLgC6E/' config.json
+./start.sh
 ```
 
-## Configure
+## Configure (manual, only if you didn't use the one-paste)
 
 ```bash
-cd phone-agent
+cd ROUTERS-WEBSYTEM/phone-agent
 cp config.example.json config.json
 nano config.json
 ```
@@ -80,8 +86,22 @@ remove with `uninstall-autostart.cmd`.
 ## Run (Termux)
 
 ```bash
+cd ROUTERS-WEBSYTEM/phone-agent
 ./start.sh
 ```
+
+`start.sh` starts the relay, then tries cloudflared (trycloudflare.com). If
+that network blocks Cloudflare (TLS error), it **automatically falls back to
+a localhost.run tunnel**. Whichever URL appears is **auto-saved to the live
+site** (`/api/relay/pldt/tunnel-url`) — nothing to paste. Keep Termux open
+(`termux-wake-lock` is applied automatically). Ctrl+C stops it.
+
+The phone must be on the WiFi that reaches the target router
+(`config.json` → `host`, default `192.168.1.1`).
+
+> Only ONE relay URL is live at a time — the last device that started its
+> relay wins. When the phone relays, the home PC's relay should be stopped
+> (or will re-take over on its next start).
 
 cloudflared prints a URL like `https://xxx.trycloudflare.com`. Keep Termux in
 the foreground (or use `tmux`). **The URL changes every restart** — after each
