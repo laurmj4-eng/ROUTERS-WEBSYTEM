@@ -21,6 +21,9 @@ live site (Render)  -->  cloudflared tunnel  -->  phone-agent :8787  -->  router
   (copy from `config.example.json`; also overridable via env `RELAY_TOKEN`,
   `RT_HOST`).
 - `start.sh` — starts server + cloudflared tunnel (Termux).
+- `start-relay.cmd` / `start-relay.ps1` — Windows one-click: starts relay +
+  tunnel, then **auto-saves the fresh tunnel URL to the live site** (no
+  re-pasting in the Relay card). `stop-relay.cmd` stops both.
 
 ## Termux setup (first time, on the phone)
 
@@ -47,7 +50,16 @@ Set:
 - `adminpldt.username` / `adminpldt.password` — PLDT superadmin account
   (default `adminpldt` / `AC2DIU7QW3ERTY6UPAS4DFG`).
 
-## Run
+## Run (Windows, recommended)
+
+The PC is the relay: double-click **`start-relay.cmd`** after every boot. It
+starts the relay + cloudflared and saves the new tunnel URL to the live site
+automatically (`POST /api/relay/pldt/tunnel-url`, shared token) — nothing to
+paste. Stop with `stop-relay.cmd`.
+
+The PC must stay on the WiFi that reaches the router (`config.json` → `host`).
+
+## Run (Termux)
 
 ```bash
 ./start.sh

@@ -1,6 +1,7 @@
 {
   "host": "192.168.1.1",
   "port": 443,
+  "live_site": "https://piso-wifi-tools.onrender.com",
   "relay_token": "CHANGE_ME_to_the_RELAY_TOKEN_from_Render",
   "admin": {
     "username": "admin",

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Relay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -32,6 +33,32 @@ class RelayPldtController extends Controller
             'success' => false,
             'message' => 'Unauthorized — missing or invalid relay token.',
         ], 401);
+    }
+
+    /**
+     * The PC agent's start-relay script saves its fresh trycloudflare URL here
+     * after every restart, so the user never has to re-paste it in the UI.
+     * Same shared-token guard as the other relay endpoints.
+     */
+    public function setTunnelUrl(Request $request): JsonResponse
+    {
+        if (! $this->authorized($request)) {
+            return $this->deny();
+        }
+
+        $validated = $request->validate([
+            'url' => 'required|string|max:255',
+        ]);
+
+        $url = trim($validated['url']);
+
+        if (! str_starts_with($url, 'http://') && ! str_starts_with($url, 'https://')) {
+            return response()->json(['success' => false, 'message' => 'URL must start with http:// or https://.'], 422);
+        }
+
+        Relay::set('pldt', $url);
+
+        return response()->json(['success' => true, 'url' => $url, 'active' => true]);
     }
 
     public function checkConnection(Request $request): JsonResponse

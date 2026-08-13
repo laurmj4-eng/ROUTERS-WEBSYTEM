@@ -24,6 +24,7 @@ Route::post('/auth/login', [AuthController::class, 'login']);
 Route::post('/relay/pldt/check-connection', [RelayPldtController::class, 'checkConnection']);
 Route::post('/relay/pldt/wifi-scan', [RelayPldtController::class, 'wifiScan']);
 Route::post('/relay/pldt/scan-password', [RelayPldtController::class, 'scanPassword']);
+Route::post('/relay/pldt/tunnel-url', [RelayPldtController::class, 'setTunnelUrl']);
 
 // All other routes require a session (dashboard) or a Sanctum token (local agent)
 Route::middleware('auth:sanctum')->group(function () {
