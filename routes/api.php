@@ -46,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/router/scan', [RouterController::class, 'triggerScan']);
     Route::post('/router/scan/results', [RouterController::class, 'storeScanResults']);
     Route::get('/router/status', [RouterController::class, 'getRouterStatus']);
+    Route::post('/router/check-connection', [RouterController::class, 'checkRouterConnection']);
     Route::post('/router/wifi-scan', [RouterController::class, 'triggerWifiPasswordScan']);
     Route::get('/router/credential', [RouterController::class, 'getActiveCredential']);
     Route::post('/router/session-status', [RouterController::class, 'updateSessionStatus']);

@@ -2,7 +2,7 @@
     $tools = $tools ?? 'all';
     $families = [
         'lpb' => ['label' => 'LPB Piso WiFi', 'pages' => ['lpb-piso', 'lpb-password']],
-        'pldt' => ['label' => 'PLDT WiFi', 'pages' => ['reboot', 'session', 'wifi-pass', 'network', 'scanner', 'password-scanner', 'log']],
+        'pldt' => ['label' => 'PLDT WiFi', 'pages' => ['scanner', 'password-scanner', 'log']],
         'adu' => ['label' => 'ADU Piso WiFi', 'pages' => ['adu-piso']],
     ];
     $pages = $tools === 'all' ? array_values(array_unique(array_merge(...array_column($families, 'pages')))) : ($families[$tools]['pages'] ?? []);
@@ -10,10 +10,6 @@
     $defaultPage = $pages[0] ?? 'log';
 
     $nav = [
-        'reboot' => ['&#8635;', 'System Reboot', 'nav-icon-reboot'],
-        'session' => ['&#128274;', 'Router Session', 'nav-icon-session'],
-        'wifi-pass' => ['&#128190;', 'Wi-Fi Password', 'nav-icon-wifi-pass'],
-        'network' => ['&#128246;', 'Network Status', 'nav-icon-network'],
         'scanner' => ['&#128269;', 'Password Scanner Using Admin', 'nav-icon-scanner'],
         'password-scanner' => ['&#128477;', 'Password Scanner using adminpldt', 'nav-icon-password-scanner'],
         'log' => ['&#128196;', 'Activity Log', 'nav-icon-log'],
@@ -23,10 +19,6 @@
     ];
 
     $pageTitles = [
-        'reboot' => ['System Reboot', 'Reboot your router remotely'],
-        'session' => ['Router Session', 'View and check agent session status'],
-        'wifi-pass' => ['Wi-Fi Password', 'Change the Wi-Fi password on both 2.4G and 5G'],
-        'network' => ['Network Status', 'View connected devices and network info'],
         'scanner' => ['Password Scanner Using Admin', 'Scan router config using adminpldt to decrypt WiFi passwords and crack admin hashes'],
         'password-scanner' => ['Password Scanner using adminpldt', 'Decrypt WiFi passwords from router config backup using adminpldt credentials'],
         'log' => ['Activity Log', 'View all triggered actions and their status'],
@@ -36,7 +28,6 @@
     ];
 
     $pageView = [
-        'wifi-pass' => 'dashboard.wifi-password',
     ];
 @endphp
 <!DOCTYPE html>
@@ -142,10 +133,6 @@
             font-size: 16px;
             flex-shrink: 0;
         }
-        .nav-icon-reboot { background: #3b0764; }
-        .nav-icon-session { background: #14532d; }
-        .nav-icon-wifi-pass { background: #1e3a5f; }
-        .nav-icon-network { background: #065f46; }
         .nav-icon-scanner { background: #422006; }
         .nav-icon-password-scanner { background: #4a1942; }
         .console-wrap { background:#0d1117; border:1px solid #30363d; border-radius:8px; overflow:hidden; }
@@ -241,22 +228,6 @@
         .badge-yellow { background: #422006; color: #fbbf24; }
         .badge-purple { background: #3b0764; color: #c084fc; }
 
-        /* Reboot */
-        .reboot-zone { text-align: center; padding: 20px 0; }
-        .reboot-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 36px;
-            transition: transform 0.3s;
-        }
-        .reboot-icon:hover { transform: scale(1.05); }
-        .reboot-desc { color: #94a3b8; font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
         .btn-primary {
             background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
             color: white;
@@ -270,20 +241,6 @@
         }
         .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(37,99,235,0.3); }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        .btn-reboot {
-            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-            color: white;
-            border: none;
-            padding: 14px 40px;
-            border-radius: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn-reboot:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(220,38,38,0.3); }
-        .btn-reboot:active { transform: translateY(0); }
-        .btn-reboot:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
         /* Forms */
         .form-group { margin-bottom: 18px; }
@@ -316,7 +273,6 @@
 
         /* Network Status */
         .network-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-        .network-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
         .network-item { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 16px; position: relative; }
         .network-item .label { font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
         .network-item .value { font-size: 15px; font-weight: 600; color: #f1f5f9; }
@@ -339,12 +295,6 @@
             transition: all 0.2s;
         }
         .toggle-pass:hover { border-color: #60a5fa; color: #60a5fa; }
-        .network-meta { display: flex; gap: 24px; padding-top: 16px; border-top: 1px solid #334155; flex-wrap: wrap; }
-        .network-meta-item { font-size: 13px; color: #94a3b8; }
-        .network-meta-item span { color: #f1f5f9; font-weight: 600; }
-        .status-connected { color: #4ade80; }
-        .status-disconnected { color: #f87171; }
-        .status-unknown { color: #fbbf24; }
         .btn-scan {
             background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
             color: white;
@@ -402,11 +352,6 @@
         .wifi-scan-result .wifi-actions button:hover { border-color: #60a5fa; color: #60a5fa; }
         .wifi-history-time { font-size: 11px; color: #64748b; }
 
-        /* Session */
-        .session-active { background: #14532d; color: #4ade80; }
-        .session-expired { background: #450a0a; color: #f87171; }
-        .session-unknown { background: #422006; color: #fbbf24; }
-
         /* Activity Log */
         .log-table { width: 100%; border-collapse: collapse; }
         .log-table th { text-align: left; font-size: 12px; font-weight: 600; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 12px; border-bottom: 1px solid #334155; }
@@ -448,7 +393,6 @@
             .sidebar { display: none; }
             .main { margin-left: 0; }
             .main-body { padding: 16px; }
-            .network-grid { grid-template-columns: 1fr; }
             .form-row { flex-direction: column; gap: 0; }
         }
 
@@ -554,7 +498,7 @@
         <div class="sidebar-nav-label">{{ $familyLabel }}</div>
         @foreach ($pages as $pg)
             <div class="sidebar-nav-item" data-page="{{ $pg }}" onclick="navigateTo('{{ $pg }}')">
-                <div class="nav-icon {{ $nav[$pg][2] ?? 'nav-icon-reboot' }}">{!! $nav[$pg][0] ?? '&#128225;' !!}</div>
+                <div class="nav-icon {{ $nav[$pg][2] ?? 'nav-icon-log' }}">{!! $nav[$pg][0] ?? '&#128196;' !!}</div>
                 {{ $nav[$pg][1] ?? $pg }}
             </div>
         @endforeach
@@ -568,8 +512,8 @@
 
 <div class="main">
     <div class="main-header">
-        <h2 id="pageTitle">System Reboot</h2>
-        <p id="pageSubtitle">Reboot your Huawei router remotely</p>
+        <h2 id="pageTitle">Router Control Dashboard</h2>
+        <p id="pageSubtitle">Select a tool from the sidebar</p>
     </div>
 
     <div class="main-body">
@@ -660,8 +604,6 @@
         toggleDrawer(false);
 
         if (page === 'log') refreshLogs();
-        if (page === 'network') refreshRouterStatus();
-        if (page === 'scanner') loadWifiPasswords();
         if (page === 'lpb-piso') lpbConnect();
         if (page === 'adu-piso') aduRefreshState();
     }
@@ -762,161 +704,6 @@
         }
     }
 
-    // --- Reboot ---
-    async function triggerReboot() {
-        if (!confirm('Are you sure you want to reboot the router?')) return;
-        setLoading('btnReboot', true);
-        try {
-            const res = await fetch(`${API_BASE}/router/reboot`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Reboot dispatched! (Log #${data.log_id})`);
-                refreshLogs();
-            } else {
-                showToast('Failed to dispatch reboot.', 'error');
-            }
-        } catch (err) {
-            showToast('Connection error: ' + err.message, 'error');
-        }
-        setLoading('btnReboot', false);
-    }
-
-    // --- Password Change ---
-    async function triggerPasswordChange(e) {
-        e.preventDefault();
-        let pw = document.getElementById('newPassword').value;
-        let cpw = document.getElementById('confirmPassword').value;
-        if (pw !== cpw) {
-            showToast('Passwords do not match!', 'error');
-            return false;
-        }
-        if (!/[^a-zA-Z0-9]/.test(pw)) {
-            pw = pw + '!';
-            cpw = cpw + '!';
-        }
-        if (pw.length < 8) {
-            showToast('Password must be at least 8 characters.', 'error');
-            return false;
-        }
-        setLoading('btnSave', true);
-        try {
-            const res = await fetch(`${API_BASE}/router/password`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ new_password: pw, new_password_confirmation: cpw })
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Password change dispatched! (Log #${data.log_id})`);
-                document.getElementById('passwordForm').reset();
-                refreshLogs();
-            } else {
-                showToast(data.message || 'Validation failed.', 'error');
-            }
-        } catch (err) {
-            showToast('Connection error: ' + err.message, 'error');
-        }
-        setLoading('btnSave', false);
-        return false;
-    }
-
-    // --- Network Status ---
-    async function refreshRouterStatus() {
-        try {
-            const res = await fetch(`${API_BASE}/router/status`, {
-                headers: { 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            const s = data.data;
-            if (!s) return;
-
-            const el = (id, val) => { document.getElementById(id).textContent = val || '--'; };
-            el('ssid2g', s.wifi_name_2g);
-            el('ssid5g', s.wifi_name_5g);
-
-            const passEl2g = document.getElementById('pass2g');
-            const passEl5g = document.getElementById('pass5g');
-            passEl2g.textContent = s.wifi_password_2g ? '*'.repeat(Math.min(s.wifi_password_2g.length, 12)) : '--';
-            passEl5g.textContent = s.wifi_password_5g ? '*'.repeat(Math.min(s.wifi_password_5g.length, 12)) : '--';
-            passEl2g.dataset.raw = s.wifi_password_2g || '';
-            passEl5g.dataset.raw = s.wifi_password_5g || '';
-            passEl2g.dataset.visible = 'false';
-            passEl5g.dataset.visible = 'false';
-
-            const connEl = document.getElementById('connStatus');
-            connEl.textContent = s.connection_status || 'Unknown';
-            connEl.className = s.connection_status === 'connected' ? 'status-connected'
-                : s.connection_status === 'disconnected' ? 'status-disconnected'
-                : 'status-unknown';
-
-            el('deviceCount', s.total_connected_devices);
-            const lastScan = s.last_scanned_at ? new Date(s.last_scanned_at).toLocaleString() : 'Never';
-            el('lastScan', lastScan);
-
-            const badge = document.getElementById('scanBadge');
-            if (s.last_scanned_at) {
-                badge.textContent = 'Last scan: ' + lastScan;
-                badge.className = 'badge badge-green';
-            }
-        } catch (err) {
-            console.error('Failed to fetch router status:', err);
-        }
-    }
-
-    async function triggerScan() {
-        const btn = document.getElementById('btnScan');
-        const btnText = btn.querySelector('.btn-text');
-        btn.disabled = true;
-        btn.classList.add('loading');
-        btnText.textContent = 'Scanning...';
-        try {
-            const res = await fetch(`${API_BASE}/router/scan`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast(`Scan dispatched! (Log #${data.log_id})`);
-                refreshLogs();
-                pollScanStatus(data.log_id);
-            } else {
-                showToast('Failed to dispatch scan.', 'error');
-            }
-        } catch (err) {
-            showToast('Connection error: ' + err.message, 'error');
-        }
-        btn.disabled = false;
-        btn.classList.remove('loading');
-        btnText.textContent = 'Scan Network';
-    }
-
-    let scanPollCount = 0;
-    function pollScanStatus(logId) {
-        scanPollCount = 0;
-        const interval = setInterval(async () => {
-            scanPollCount++;
-            if (scanPollCount > 30) { clearInterval(interval); showToast('Scan timed out.', 'error'); return; }
-            try {
-                const res = await fetch(`${API_BASE}/router/logs`, { headers: { 'Accept': 'application/json' } });
-                const data = await res.json();
-                const log = data.data?.find(l => l.id === logId);
-                if (log && log.status !== 'pending') {
-                    clearInterval(interval);
-                    if (log.status === 'success') {
-                        showToast('Network scan completed!');
-                        refreshRouterStatus();
-                    } else {
-                        showToast('Network scan failed. Check agent logs.', 'error');
-                    }
-                    refreshLogs();
-                }
-            } catch {}
-        }, 2000);
-    }
-
     // --- Password Scanner Using Admin ---
     async function triggerWifiScan() {
         const username = document.getElementById('wifiScanUser').value.trim();
@@ -925,122 +712,111 @@
             showToast('Please enter both admin username and password.', 'error');
             return;
         }
+        const routerIp = '192.168.1.1';
         const btn = document.getElementById('btnWifiScan');
         const btnText = btn.querySelector('.btn-text');
+        const results = document.getElementById('wifiScanResults');
+        const badge = document.getElementById('wifiScanBadge');
         btn.disabled = true;
         btn.classList.add('loading');
+        btnText.textContent = 'Connecting...';
+        badge.textContent = 'Connecting... please wait';
+        badge.className = 'badge badge-blue';
+        results.innerHTML = `
+            <div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px">
+                <div style="width:22px;height:22px;border:2px solid #334155;border-top-color:#3b82f6;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px"></div>
+                Connecting to ${routerIp}...
+            </div>`;
+
+        let reachable = false;
+        try {
+            const ck = await fetch(`${API_BASE}/router/check-connection`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify({ router_ip: routerIp })
+            });
+            const ckData = await ck.json();
+            reachable = !!ckData.success;
+        } catch (err) {
+            reachable = false;
+        }
+
+        if (!reachable) {
+            badge.textContent = 'Not reachable';
+            badge.className = 'badge badge-red';
+            results.innerHTML = `<div class="empty-state">Cannot reach ${routerIp}. Make sure you are connected to the router's network, then try again.</div>`;
+            btn.disabled = false;
+            btn.classList.remove('loading');
+            btnText.textContent = 'Scan WiFi Passwords';
+            return;
+        }
+
+        badge.textContent = 'Connected';
+        badge.className = 'badge badge-green';
         btnText.textContent = 'Scanning...';
-        document.getElementById('wifiScanBadge').textContent = 'Scanning...';
-        document.getElementById('wifiScanBadge').className = 'badge badge-blue';
+        results.innerHTML = `
+            <div style="padding:24px;text-align:center;color:#94a3b8;font-size:13px">
+                <div style="width:22px;height:22px;border:2px solid #334155;border-top-color:#22c55e;border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 10px"></div>
+                Connected to ${routerIp} &#10003; Logging in to router, skipping the password-change popup, and reading WiFi bands... this can take ~30 seconds.
+            </div>`;
         try {
             const res = await fetch(`${API_BASE}/router/wifi-scan`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ username, password, router_ip: routerIp })
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`WiFi password scan dispatched! (Log #${data.log_id})`);
-                pollWifiScanStatus(data.log_id);
+                showToast(`WiFi password scan completed! (Log #${data.log_id})`);
+                badge.textContent = `Completed · ${data.data.length} bands`;
+                badge.className = 'badge badge-green';
+                renderWifiScanResults(data.data || [], data.elapsed);
                 refreshLogs();
             } else {
-                showToast('Failed to dispatch WiFi scan.', 'error');
-                document.getElementById('wifiScanBadge').textContent = 'Failed';
+                badge.textContent = 'Failed';
+                badge.className = 'badge badge-red';
+                const detail = data.error ? ` <div style="margin-top:6px;font-family:monospace;font-size:11px;word-break:break-all">${esc(data.error)}</div>` : '';
+                results.innerHTML = `<div class="empty-state">Scan failed. ${esc(data.message || 'Check that the admin credentials are correct and the router is reachable.')}${detail}</div>`;
             }
         } catch (err) {
             showToast('Connection error: ' + err.message, 'error');
-            document.getElementById('wifiScanBadge').textContent = 'Error';
+            badge.textContent = 'Error';
+            results.innerHTML = `<div class="empty-state">Connection error: ${esc(err.message)}</div>`;
         }
         btn.disabled = false;
         btn.classList.remove('loading');
         btnText.textContent = 'Scan WiFi Passwords';
     }
 
-    let wifiPollCount = 0;
-    function pollWifiScanStatus(logId) {
-        wifiPollCount = 0;
-        const interval = setInterval(async () => {
-            wifiPollCount++;
-            if (wifiPollCount > 40) {
-                clearInterval(interval);
-                document.getElementById('wifiScanBadge').textContent = 'Timed out';
-                showToast('WiFi scan timed out.', 'error');
-                return;
-            }
-            try {
-                const res = await fetch(`${API_BASE}/router/logs`, { headers: { 'Accept': 'application/json' } });
-                const data = await res.json();
-                const log = data.data?.find(l => l.id === logId);
-                if (log && log.status !== 'pending') {
-                    clearInterval(interval);
-                    if (log.status === 'success') {
-                        showToast('WiFi password scan completed!');
-                        document.getElementById('wifiScanBadge').textContent = 'Completed';
-                        document.getElementById('wifiScanBadge').className = 'badge badge-green';
-                        loadWifiPasswords();
-                    } else {
-                        showToast('WiFi scan failed. Check agent logs.', 'error');
-                        document.getElementById('wifiScanBadge').textContent = 'Failed';
-                    }
-                    refreshLogs();
-                }
-            } catch {}
-        }, 2000);
-    }
-
-    async function loadWifiPasswords() {
-        try {
-            const res = await fetch(`${API_BASE}/scan/wifi-passwords`, {
-                headers: { 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            const container = document.getElementById('wifiScanResults');
-            const entries = data.data || [];
-            if (!entries.length) {
-                container.innerHTML = '<div class="empty-state">No WiFi passwords scanned yet. Click the scan button above.</div>';
-                document.getElementById('wifiScanBadge').textContent = 'Not scanned';
-                return;
-            }
-            const grouped = {};
-            entries.forEach(e => {
-                const key = e.scanned_at;
-                if (!grouped[key]) grouped[key] = [];
-                grouped[key].push(e);
-            });
-            let html = '';
-            Object.entries(grouped).forEach(([time, items]) => {
-                html += `<div style="margin-bottom:16px">`;
-                html += `<div class="wifi-history-time" style="margin-bottom:8px">Scanned: ${new Date(time).toLocaleString()}</div>`;
-                items.forEach(item => {
-                    const bandCls = item.band === '2.4G' ? 'band-24g' : 'band-5g';
-                    const passId = `wifi-pass-${item.id}`;
-                    const maskedPass = item.password ? '*'.repeat(Math.min(item.password.length, 16)) : 'N/A';
-                    html += `
-                    <div class="wifi-scan-result">
-                        <span class="band-badge ${esc(item.band)}">${esc(item.band)}</span>
-                        <div class="wifi-info">
-                            <div class="wifi-ssid">${esc(item.ssid || 'Unknown SSID')}</div>
-                            <div class="wifi-pass" id="${passId}" data-raw="${esc(item.password || '')}" data-visible="false">${esc(maskedPass)}</div>
-                            <div class="wifi-meta">
-                                ${item.encryption ? 'Encryption: ' + esc(item.encryption) : ''}
-                                ${item.authentication ? ' · Auth: ' + esc(item.authentication) : ''}
-                                ${item.router_ip ? ' · Router: ' + esc(item.router_ip) : ''}
-                            </div>
-                        </div>
-                        <div class="wifi-actions">
-                            <button onclick="toggleWifiPass('${passId}')" title="Show/Hide">&#128065;</button>
-                            <button onclick="copyWifiPass('${passId}')" title="Copy">&#128203;</button>
-                        </div>
-                    </div>`;
-                });
-                html += `</div>`;
-            });
-            container.innerHTML = html;
-            document.getElementById('wifiScanBadge').textContent = `${entries.length} entries`;
-            document.getElementById('wifiScanBadge').className = 'badge badge-green';
-        } catch (err) {
-            console.error('Failed to load WiFi passwords:', err);
+    function renderWifiScanResults(entries, elapsed) {
+        const container = document.getElementById('wifiScanResults');
+        if (!entries.length) {
+            container.innerHTML = '<div class="empty-state">Scan completed but no WiFi credentials were found.</div>';
+            return;
         }
+        let html = `<div class="wifi-history-time">Latest scan${elapsed ? ' · took ' + elapsed + 's' : ''}</div>`;
+        entries.forEach(item => {
+            const passId = 'wifi-pass-' + Math.random().toString(36).slice(2, 9);
+            const maskedPass = item.password ? '*'.repeat(Math.min(item.password.length, 16)) : 'N/A';
+            html += `
+            <div class="wifi-scan-result">
+                <span class="band-badge ${esc(item.band)}">${esc(item.band)}</span>
+                <div class="wifi-info">
+                    <div class="wifi-ssid">${esc(item.ssid || 'Unknown SSID')}</div>
+                    <div class="wifi-pass" id="${passId}" data-raw="${esc(item.password || '')}" data-visible="false">${esc(maskedPass)}</div>
+                    <div class="wifi-meta">
+                        ${item.encryption ? 'Encryption: ' + esc(item.encryption) : ''}
+                        ${item.authentication ? ' · Auth: ' + esc(item.authentication) : ''}
+                        ${item.router_ip ? ' · Router: ' + esc(item.router_ip) : ''}
+                    </div>
+                </div>
+                <div class="wifi-actions">
+                    <button onclick="toggleWifiPass('${passId}')" title="Show/Hide">&#128065;</button>
+                    <button onclick="copyWifiPass('${passId}')" title="Copy">&#128203;</button>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
     }
 
     function toggleWifiPass(id) {
@@ -1360,94 +1136,6 @@
         btn.classList.remove('loading');
         btnText.textContent = 'Scan File';
     }
-    async function checkSessionStatus() {
-        const btn = document.getElementById('btnCheckSession');
-        if (!btn) return;
-        const btnText = btn.querySelector('.btn-text');
-        btn.disabled = true;
-        btn.classList.add('loading');
-        btnText.textContent = 'Checking...';
-        try {
-            const res = await fetch(`${API_BASE}/router/session-check`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-            });
-            const data = await res.json();
-            if (data.success) {
-                showToast('Session check dispatched — waiting for agent...');
-                pollSessionStatus(data.log_id);
-            } else {
-                showToast('Failed to dispatch session check.', 'error');
-                btn.disabled = false;
-                btn.classList.remove('loading');
-                btnText.textContent = 'Check Session';
-            }
-        } catch (err) {
-            showToast('Connection error: ' + err.message, 'error');
-            btn.disabled = false;
-            btn.classList.remove('loading');
-            btnText.textContent = 'Check Session';
-        }
-    }
-
-    let sessionPollCount = 0;
-    function pollSessionStatus(logId) {
-        sessionPollCount = 0;
-        const interval = setInterval(async () => {
-            sessionPollCount++;
-            if (sessionPollCount > 30) {
-                clearInterval(interval);
-                showToast('Session check timed out.', 'error');
-                const btn = document.getElementById('btnCheckSession');
-                btn.disabled = false;
-                btn.classList.remove('loading');
-                btn.querySelector('.btn-text').textContent = 'Check Session';
-                return;
-            }
-            try {
-                const res = await fetch(`${API_BASE}/router/session-status`, {
-                    headers: { 'Accept': 'application/json' }
-                });
-                const data = await res.json();
-                const s = data.data;
-                if (s.status !== 'unknown' && s.checked_at) {
-                    clearInterval(interval);
-                    updateSessionUI(s);
-                    const btn = document.getElementById('btnCheckSession');
-                    btn.disabled = false;
-                    btn.classList.remove('loading');
-                    btn.querySelector('.btn-text').textContent = 'Check Session';
-                }
-            } catch {}
-        }, 2000);
-    }
-
-    function updateSessionUI(s) {
-        const badge = document.getElementById('sessionBadge');
-        const icon = document.getElementById('sessionIcon');
-        const msg = document.getElementById('sessionMsg');
-        const lastChecked = document.getElementById('sessionLastChecked');
-        if (s.status === 'active') {
-            badge.textContent = 'Active';
-            badge.className = 'badge session-active';
-            icon.textContent = '\u{1F513}';
-            msg.textContent = 'Session is valid \u2014 login will be skipped for next action.';
-            msg.style.color = '#4ade80';
-        } else if (s.status === 'expired') {
-            badge.textContent = 'Expired';
-            badge.className = 'badge session-expired';
-            icon.textContent = '\u{1F512}';
-            msg.textContent = 'Session expired \u2014 agent will re-login on next action.';
-            msg.style.color = '#f87171';
-        } else {
-            badge.textContent = 'Unknown';
-            badge.className = 'badge session-unknown';
-            icon.textContent = '\u{1F50D}';
-            msg.textContent = 'No session data yet. Run an action first.';
-            msg.style.color = '#fbbf24';
-        }
-        if (s.checked_at) lastChecked.textContent = new Date(s.checked_at).toLocaleString();
-    }
 
     // --- Credential Pre-fill ---
     async function loadDefaultCredential() {
@@ -1695,9 +1383,7 @@
     // --- Init ---
     if (document.getElementById('relayUrl')) loadRelay();
     navigateTo('{{ $defaultPage }}');
-    if (pageTitles['network']) refreshRouterStatus();
     if (pageTitles['scanner']) {
-        loadWifiPasswords();
         loadDefaultCredential();
     }
     if (pageTitles['log']) {

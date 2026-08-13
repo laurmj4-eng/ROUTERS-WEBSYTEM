@@ -10,7 +10,6 @@ use App\Models\RouterStatus;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -177,36 +176,108 @@ class RouterController extends Controller
         ]);
     }
 
+    public function checkRouterConnection(Request $request): JsonResponse
+    {
+        $routerIp = $request->input('router_ip') ?: '192.168.1.1';
+        $host = gethostbyname($routerIp);
+
+        foreach ([443, 80] as $port) {
+            $fp = @fsockopen($host, $port, $errno, $errstr, 4);
+            if ($fp) {
+                fclose($fp);
+                return response()->json([
+                    'success' => true,
+                    'ip'      => $routerIp,
+                    'port'    => $port,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => false,
+            'ip'      => $routerIp,
+            'message' => "Cannot reach {$routerIp} — " . ($errstr ?? 'no response'),
+        ]);
+    }
+
     public function triggerWifiPasswordScan(Request $request): JsonResponse
     {
+        set_time_limit(180);
+
         $validated = $request->validate([
-            'username' => 'required|string|max:64',
-            'password' => 'required|string|max:128',
+            'username'  => 'required|string|max:64',
+            'password'  => 'required|string|max:128',
+            'router_ip' => 'nullable|string|max:64',
         ]);
+
+        $routerIp   = $validated['router_ip'] ?? '192.168.1.1';
+        $scriptPath = base_path('local-agent/puppeteer/wifi_scan_cli.js');
+
+        if (! is_file($scriptPath)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Wifi scan script not installed on this server — this tool runs on your shop machine.',
+            ], 502);
+        }
+
+        $escUser   = escapeshellarg($validated['username']);
+        $escPass   = escapeshellarg($validated['password']);
+        $escIp     = escapeshellarg($routerIp);
+        $escScript = escapeshellarg($scriptPath);
 
         $log = RouterLog::create([
             'action_type'  => 'wifi_password_scan',
             'payload'      => json_encode([
                 'username' => $validated['username'],
-                'password' => Crypt::encryptString($validated['password']),
+                'router_ip' => $routerIp,
             ]),
             'status'       => 'pending',
             'triggered_by' => request()->ip(),
         ]);
 
-        $this->safeBroadcast(new RouterActionTriggered(
-            logId: $log->id,
-            action: 'wifi_password_scan',
-            parameters: [
-                'username' => $validated['username'],
-                'password' => $validated['password'],
-            ],
-        ));
+        $cmd = "node $escScript --username $escUser --password $escPass --router-ip $escIp 2>&1";
+
+        Log::info('WifiPasswordScan: ' . $cmd);
+        $start = microtime(true);
+        $output = shell_exec($cmd);
+        $elapsed = round(microtime(true) - $start);
+
+        $result = $this->parseJsonOutput($output);
+
+        if (!$result || isset($result['error'])) {
+            $log->update(['status' => 'failed']);
+
+            return response()->json([
+                'success'    => false,
+                'log_id'     => $log->id,
+                'message'    => $result['error'] ?? 'Unknown error during WiFi password scan',
+                'raw_output' => $output,
+                'elapsed'    => $elapsed,
+            ], 500);
+        }
+
+        $wifi = $result['wifi'] ?? [];
+        foreach ($wifi as $entry) {
+            if (empty($entry['band'])) continue;
+
+            \App\Models\WifiPassword::create([
+                'ssid'           => $entry['ssid'] ?? null,
+                'password'       => $entry['password'] ?? null,
+                'band'           => $entry['band'],
+                'router_ip'      => $routerIp,
+                'encryption'     => $entry['encryption'] ?? null,
+                'authentication' => $entry['authentication'] ?? null,
+                'scanned_at'     => now(),
+            ]);
+        }
+
+        $log->update(['status' => 'success']);
 
         return response()->json([
             'success' => true,
             'log_id'  => $log->id,
-            'message' => 'WiFi password scan dispatched.',
+            'data'    => $wifi,
+            'elapsed' => $elapsed,
         ]);
     }
 
