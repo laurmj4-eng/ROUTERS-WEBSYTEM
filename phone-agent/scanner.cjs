@@ -45,13 +45,16 @@ function curl(args, jar, opts = {}) {
 // Router login. Per-account flows (verified against the live router):
 //  - 'admin' (userlevel 1): browser-style — POST GetRandCount + Referer +
 //    X-Requested-With on login.cgi.
-//  - 'adminpldt' (userlevel 2): plain — GET GetRandCount, login.cgi with the
-//    JS body cookie, NO X-Requested-With (a form submit, like the login page).
+//  - 'adminpldt' (userlevel 2): the login FORM lives on /admin.html; the
+//    router only grants a session when GetRandCount AND login.cgi carry
+//    Referer: https://host/admin.html (any other referer is rejected with a
+//    "Waiting..." bounce and NO Set-Cookie — this was the bug that made every
+//    adminpldt scan fail with "no session granted"). Origin is also sent, as
+//    the real form submit does.
 // Sessions: the firmware keeps ONE session per IP until it expires
-// (~45-60 min observed) or the router reboots; NO login (plain or browser-
-// style, any account) is accepted while a session is held, and there is no
-// logout endpoint. A conflict can only be resolved by time, reboot, or
-// scanning from a different device/IP.
+// (~15-20 min observed) or the router reboots; while a session is held, a
+// login is rejected (no Set-Cookie). A conflict can only be resolved by
+// time, reboot, or scanning from a different device/IP.
 // IMPORTANT: every failed attempt counts toward a per-account lockout, so we
 // never try a second flow for the same account.
 function login(host, username, password) {
@@ -59,9 +62,11 @@ function login(host, username, password) {
     const jar = path.join(os.tmpdir(), `hw_jar_${process.pid}_${Date.now()}.txt`);
     const style = username === 'adminpldt' ? 'plain' : 'browser';
     const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+    const loginPage = username === 'adminpldt' ? 'admin.html' : '';
+    const referer = `https://${host}/${loginPage}`;
     const r1 = style === 'browser'
       ? curl(['-A', ua, '-e', `https://${host}/`, '-H', 'X-Requested-With: XMLHttpRequest', '-X', 'POST', `https://${host}/asp/GetRandCount.asp`], null, { timeout: 15 })
-      : curl(['-A', ua, `https://${host}/asp/GetRandCount.asp`], null, { timeout: 15 });
+      : curl(['-A', ua, '-e', referer, '-H', 'X-Requested-With: XMLHttpRequest', '-X', 'POST', `https://${host}/asp/GetRandCount.asp`], null, { timeout: 15 });
     const cnt = (r1.out || '').trim();
     if (!r1.ok || !/^[0-9a-f]+$/i.test(cnt)) {
       return { error: 'GetRandCount failed: ' + (r1.out || 'no response').replace(/\s+/g, ' ').slice(0, 160) };
@@ -69,8 +74,9 @@ function login(host, username, password) {
     console.error(`login: token ok (${style})`);
     const pwB64 = Buffer.from(password, 'utf8').toString('base64');
     const body = `UserName=${encodeURIComponent(username)}&PassWord=${pwB64}&Language=en&x.X_HW_Token=${cnt}`;
-    const args = ['-A', ua, '-e', `https://${host}/`, '-b', 'Cookie=body:Language:en:id=-1', '-d', body, `https://${host}/login.cgi`];
+    const args = ['-A', ua, '-e', referer, '-b', 'Cookie=body:Language:en:id=-1', '-d', body, `https://${host}/login.cgi`];
     if (style === 'browser') args.push('-H', 'X-Requested-With: XMLHttpRequest');
+    if (style === 'plain') args.push('-H', `Origin: https://${host}`);
     curl(args, jar, { timeout: 25 });
     const jarTxt = fs.existsSync(jar) ? fs.readFileSync(jar, 'utf8') : '';
     if (!jarTxt.includes('sid=')) {
