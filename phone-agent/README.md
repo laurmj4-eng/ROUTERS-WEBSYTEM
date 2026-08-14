@@ -141,19 +141,20 @@ as `getxml_file.js` on the PC agent.
   login attempt per account per run (browser-style flow for both accounts —
   matching what a real browser sends) so it never triggers the lock itself.
   If a lock is already active, wait a few minutes and retry.
-- **One session per IP:** the firmware keeps only ONE active account session
-  per client IP and rejects a different account's login until the existing
-  session goes away. Observed behavior: an admin session **persists for many
-  hours** (6+ h confirmed; there appears to be no short idle timeout — the one
-  earlier ~20-min expiry was likely a router reboot). There is no server
-  logout endpoint. Consequences:
-  - `wifi-scan` (admin) and `scan-password` (adminpldt) cannot run back to
-    back — whichever account logs in first holds the session and blocks the
-    other for hours.
-  - The only reliable way to clear a held session is to **reboot the router**
-    (all sessions die; ~3-5 min downtime).
+- **One session per IP (any account):** the firmware keeps only ONE active
+  account session per client IP and rejects ANY login while it is held
+  (verified live: an admin session blocks adminpldt logins). Sessions expire
+  on their own (~15-20 min observed), there is no logout endpoint, and only a
+  router reboot clears them instantly. Consequences:
+  - `wifi-scan` (admin) and `scan-password` (adminpldt) cannot overlap — but
+    with a ~15-20 min TTL, waiting a short while between them works.
+  - Don't keep `192.168.1.1` open in any browser while scanning from the
+    same network — the tab's session blocks the scan until it expires.
   - `check-connection` never logs in (TCP + login-page probe only), so the
     Test button and pre-checks do NOT create sessions.
+  - `scan-password` goes straight to adminpldt (the only account that can
+    download the config) and never logs in as admin first — an admin-first
+    step would block its own adminpldt login (one session per IP).
   - Since `scan-password` returns the wifi passwords too (plaintext from the
     config file), prefer it as the single scan — avoid `wifi-scan` unless the
     config download fails.
