@@ -43,10 +43,12 @@ function curl(args, jar, opts = {}) {
 }
 
 // Router login. Both accounts use the browser-style flow (POST GetRandCount,
-// Referer, X-Requested-With on login.cgi) — what a real browser sends. This
-// also lets a same-account login REPLACE a held session: the firmware keeps
-// ONE session per IP and rejects logins while one is held, but a browser-
-// style same-account login takes the slot over (as Chrome does).
+// Referer, X-Requested-With on login.cgi) — what a real browser sends.
+// NOTE: verified that NO login (plain or browser-style, same or other
+// account) is accepted while a session is held from the same IP — the
+// firmware keeps ONE session per IP until it expires (hours) or the router
+// reboots. So a conflict can only be resolved by time, reboot, or scanning
+// from a different device/IP.
 // IMPORTANT: every failed attempt counts toward a per-account lockout, so we
 // never try a second flow for the same account.
 function login(host, username, password) {
