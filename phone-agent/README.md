@@ -138,9 +138,14 @@ as `getxml_file.js` on the PC agent.
   submitted.
 - The router locks an account temporarily after ~5 failed login attempts
   (firmware `LoginTimes`/`LockLeftTime`). The scanner sends exactly ONE
-  login attempt per account per run (browser-style flow for both accounts —
-  matching what a real browser sends) so it never triggers the lock itself.
+  login attempt per account per run so it never triggers the lock itself.
   If a lock is already active, wait a few minutes and retry.
+- **adminpldt login requires `Referer: https://host/admin.html`** (the login
+  form lives on `/admin.html`, not `/login.asp`). Any other referer makes the
+  router answer "Waiting..." and grant NO session — this was the root cause of
+  every "no session granted"/"blocked" failure. The scanner sends the correct
+  referer on both `GetRandCount` and `login.cgi`, plus `Origin` (matching the
+  real form submit).
 - **One session per IP (any account):** the firmware keeps only ONE active
   account session per client IP and rejects ANY login while it is held
   (verified live: an admin session blocks adminpldt logins). Sessions expire
@@ -158,6 +163,4 @@ as `getxml_file.js` on the PC agent.
   - Since `scan-password` returns the wifi passwords too (plaintext from the
     config file), prefer it as the single scan — avoid `wifi-scan` unless the
     config download fails.
-- If the router asks for a captcha, the login fails with a clear message —
-  keep creds correct and the captcha won't appear.
 - `config.json` and `*.txt` jar files are gitignored — never commit the token.
