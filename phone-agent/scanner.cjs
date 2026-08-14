@@ -42,32 +42,43 @@ function curl(args, jar, opts = {}) {
   }
 }
 
-// Router login. Both accounts use the browser-style flow (POST GetRandCount,
-// Referer, X-Requested-With on login.cgi) — what a real browser sends.
-// NOTE: verified that NO login (plain or browser-style, same or other
-// account) is accepted while a session is held from the same IP — the
-// firmware keeps ONE session per IP until it expires (hours) or the router
-// reboots. So a conflict can only be resolved by time, reboot, or scanning
-// from a different device/IP.
+// Router login. Per-account flows (verified against the live router):
+//  - 'admin' (userlevel 1): browser-style — POST GetRandCount + Referer +
+//    X-Requested-With on login.cgi.
+//  - 'adminpldt' (userlevel 2): plain — GET GetRandCount, login.cgi with the
+//    JS body cookie, NO X-Requested-With (a form submit, like the login page).
+// Sessions: the firmware keeps ONE session per IP until it expires
+// (~45-60 min observed) or the router reboots; NO login (plain or browser-
+// style, any account) is accepted while a session is held, and there is no
+// logout endpoint. A conflict can only be resolved by time, reboot, or
+// scanning from a different device/IP.
 // IMPORTANT: every failed attempt counts toward a per-account lockout, so we
 // never try a second flow for the same account.
 function login(host, username, password) {
   const attemptLogin = () => {
     const jar = path.join(os.tmpdir(), `hw_jar_${process.pid}_${Date.now()}.txt`);
-    const r1 = curl(['-e', `https://${host}/`, '-H', 'X-Requested-With: XMLHttpRequest', '-X', 'POST', `https://${host}/asp/GetRandCount.asp`], null, { timeout: 15 });
+    const style = username === 'adminpldt' ? 'plain' : 'browser';
+    const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+    const r1 = style === 'browser'
+      ? curl(['-A', ua, '-e', `https://${host}/`, '-H', 'X-Requested-With: XMLHttpRequest', '-X', 'POST', `https://${host}/asp/GetRandCount.asp`], null, { timeout: 15 })
+      : curl(['-A', ua, `https://${host}/asp/GetRandCount.asp`], null, { timeout: 15 });
     const cnt = (r1.out || '').trim();
     if (!r1.ok || !/^[0-9a-f]+$/i.test(cnt)) {
       return { error: 'GetRandCount failed: ' + (r1.out || 'no response').replace(/\s+/g, ' ').slice(0, 160) };
     }
+    console.error(`login: token ok (${style})`);
     const pwB64 = Buffer.from(password, 'utf8').toString('base64');
     const body = `UserName=${encodeURIComponent(username)}&PassWord=${pwB64}&Language=en&x.X_HW_Token=${cnt}`;
-    const args = ['-e', `https://${host}/`, '-b', 'Cookie=body:Language:en:id=-1', '-H', 'X-Requested-With: XMLHttpRequest', '-d', body, `https://${host}/login.cgi`];
+    const args = ['-A', ua, '-e', `https://${host}/`, '-b', 'Cookie=body:Language:en:id=-1', '-d', body, `https://${host}/login.cgi`];
+    if (style === 'browser') args.push('-H', 'X-Requested-With: XMLHttpRequest');
     curl(args, jar, { timeout: 25 });
     const jarTxt = fs.existsSync(jar) ? fs.readFileSync(jar, 'utf8') : '';
     if (!jarTxt.includes('sid=')) {
       try { fs.unlinkSync(jar); } catch (e) {}
+      console.error('login: no session granted');
       return { error: 'no-session' };
     }
+    console.error('login: session granted');
     return { ok: true, jar };
   };
 
@@ -75,8 +86,9 @@ function login(host, username, password) {
   if (first.ok || first.error !== 'no-session') return first;
 
   // No session granted. The firmware keeps ONE account session per IP and
-  // rejects a different account's login until the existing session expires.
-  // Give it one short wait+retry before deciding it is a real conflict.
+  // rejects any login while the session is held. Give it one short wait+retry
+  // (some sessions expire within a minute or two).
+  console.error('login: blocked (session held) — waiting 60s, then retrying');
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60000);
   const second = attemptLogin();
   if (second.ok) return second;
@@ -96,9 +108,10 @@ function login(host, username, password) {
   }
 
   // No countdown lock. If the login page is showing, another account session
-  // is holding the one-per-IP slot (no logout endpoint; sessions last hours).
+  // is holding the one-per-IP slot (no logout endpoint; sessions last
+  // ~45-60 min, observed).
   if (/(errloginlockNum|LoginTimes|login\.css)/i.test(lp.out || '')) {
-    return { error: `Login failed for "${username}" — the router already has another account session active (a browser tab on 192.168.1.1, or a previous scan on this network; ONE session per IP, lasting hours). Run the scan from a DIFFERENT device (e.g. the phone) or reboot the router, then retry.` };
+    return { error: `Login failed for "${username}" — the router already has another account session active (a browser tab on 192.168.1.1, or a previous scan on this network; ONE session per IP, lasting ~45-60 min). Wait about an hour, scan from a DIFFERENT device (e.g. the phone), or reboot the router, then retry.` };
   }
 
   // Unclassifiable — show what the router actually replied for diagnostics.
