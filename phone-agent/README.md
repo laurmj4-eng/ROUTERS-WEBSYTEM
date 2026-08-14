@@ -138,8 +138,9 @@ as `getxml_file.js` on the PC agent.
   submitted.
 - The router locks an account temporarily after ~5 failed login attempts
   (firmware `LoginTimes`/`LockLeftTime`). The scanner sends exactly ONE
-  login attempt per account per run (browser-style flow for `admin`, plain
-  flow for `adminpldt`) so it never triggers the lock itself. If a lock is
+  login attempt per account per run (browser-style flow for both accounts —
+  matching what a real browser sends, which also lets a same-account login
+  replace a held session) so it never triggers the lock itself. If a lock is
   already active, wait a few minutes and retry.
 - **One session per IP:** the firmware keeps only ONE active account session
   per client IP and rejects a different account's login until the existing
