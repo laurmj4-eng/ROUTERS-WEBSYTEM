@@ -75,7 +75,14 @@ function login(host, username, password) {
   const first = attemptLogin();
   if (first.ok || first.error !== 'no-session') return first;
 
-  // Failed attempt counted toward the firmware lockout (errloginlockNum=3).
+  // No session granted. The firmware keeps ONE account session per IP and
+  // rejects a different account's login until the existing session expires.
+  // Give it one short wait+retry before deciding it is a real conflict.
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 60000);
+  const second = attemptLogin();
+  if (second.ok) return second;
+
+  // Failed attempts count toward the firmware lockout (errloginlockNum=3).
   // If the router reports a lock countdown, wait it out and retry ONCE.
   const lp = curl([`https://${host}/`], null, { timeout: 15 });
   const lockM = /LockLeftTime\s*=\s*'(\d+)'/.exec(lp.out || '');
@@ -83,16 +90,15 @@ function login(host, username, password) {
     const waitMs = Math.min(parseInt(lockM[1], 10) * 1000 + 3000, 90000);
     console.error(`router login locked — waiting ${Math.round(waitMs / 1000)}s`);
     Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, waitMs);
-    const second = attemptLogin();
-    if (second.ok) return second;
-    try { fs.unlinkSync(second.jar); } catch (e) {}
+    const third = attemptLogin();
+    if (third.ok) return third;
+    try { fs.unlinkSync(third.jar); } catch (e) {}
     return { error: `Login failed for "${username}" — no session granted (wrong credentials or account temporarily locked)` };
   }
 
-  // No countdown lock — the firmware keeps ONE account session per IP and
-  // rejects a different account's login until the existing session expires
-  // (idle timeout ~10-30 min, no server logout endpoint).
-  return { error: `Login failed for "${username}" — the router already has another account session active (e.g. from a previous scan or a browser tab). Wait a few minutes and retry.` };
+  // No countdown lock — another account session is holding the router
+  // (one session per IP; there is no server logout endpoint).
+  return { error: `Login failed for "${username}" — the router already has another account session active (from a previous scan, or a browser tab open on 192.168.1.1 on ANY device). Close that tab and wait until the other session times out (up to ~30 min), then retry.` };
 }
 
 function getToken(host, jar) {
@@ -287,14 +293,18 @@ function main() {
   const elapsed = () => Math.round((Date.now() - t0) / 1000);
 
   if (mode === 'check') {
-    const cred = pickCreds({});
-    const loginR = login(cred.host, cred.username, cred.password);
-    if (loginR.error) {
-      console.log(JSON.stringify({ success: false, ip: cred.host, message: loginR.error, elapsed: elapsed() }));
+    // Reachability probe WITHOUT logging in: a real login would open a router
+    // session and block the other account (one-session-per-IP rule).
+    const host = overrides.router_ip || cfg.host;
+    const r = curl([`https://${host}/`], null, { timeout: 15 });
+    const page = r.out || '';
+    const isRouter = r.ok && page.length > 200
+      && /(errloginlockNum|LoginTimes|GetRandCount|login\.css)/i.test(page);
+    if (!isRouter) {
+      console.log(JSON.stringify({ success: false, ip: host, message: 'Router login page not reachable: ' + (r.out || 'no response').replace(/\s+/g, ' ').slice(0, 160), elapsed: elapsed() }));
       process.exit(1);
     }
-    try { fs.unlinkSync(loginR.jar); } catch (e) {}
-    console.log(JSON.stringify({ success: true, ip: cred.host, reachable: true, mode: cred.username, elapsed: elapsed() }));
+    console.log(JSON.stringify({ success: true, ip: host, reachable: true, mode: 'probe-no-login', elapsed: elapsed() }));
     process.exit(0);
   }
 

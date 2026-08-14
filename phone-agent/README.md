@@ -143,11 +143,20 @@ as `getxml_file.js` on the PC agent.
   already active, wait a few minutes and retry.
 - **One session per IP:** the firmware keeps only ONE active account session
   per client IP and rejects a different account's login until the existing
-  session expires (idle timeout ~10-30 min, no server logout endpoint). So
-  don't run `wifi-scan` (admin) and `scan-password` (adminpldt) back to
-  back — wait a few minutes between them, and avoid logging into the router
-  UI from the same WiFi right before a scan. When the login fails for this
-  reason the scanner says so explicitly.
+  session goes away. Observed behavior: an admin session **persists for many
+  hours** (6+ h confirmed; there appears to be no short idle timeout — the one
+  earlier ~20-min expiry was likely a router reboot). There is no server
+  logout endpoint. Consequences:
+  - `wifi-scan` (admin) and `scan-password` (adminpldt) cannot run back to
+    back — whichever account logs in first holds the session and blocks the
+    other for hours.
+  - The only reliable way to clear a held session is to **reboot the router**
+    (all sessions die; ~3-5 min downtime).
+  - `check-connection` never logs in (TCP + login-page probe only), so the
+    Test button and pre-checks do NOT create sessions.
+  - Since `scan-password` returns the wifi passwords too (plaintext from the
+    config file), prefer it as the single scan — avoid `wifi-scan` unless the
+    config download fails.
 - If the router asks for a captcha, the login fails with a clear message —
   keep creds correct and the captcha won't appear.
 - `config.json` and `*.txt` jar files are gitignored — never commit the token.
