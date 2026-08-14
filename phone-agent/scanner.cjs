@@ -326,7 +326,13 @@ function main() {
     process.exit(0);
   }
 
-  const cred = pickCreds(overrides);
+  // scan-password reads the config file, which ONLY the adminpldt account
+  // (userlevel 2) can download — an admin attempt would create a session and
+  // then block its own adminpldt login (ONE session per IP). So go straight
+  // to adminpldt; wifi-scan (readWlan) uses admin.
+  const cred = mode === 'scan-password' && !overrides.mode && !overrides.username
+    ? { host: overrides.router_ip || cfg.host, username: cfg.adminpldt.username, password: cfg.adminpldt.password, mode: 'adminpldt' }
+    : pickCreds(overrides);
   const fn = mode === 'scan-password' ? scanConfig : readWlan;
   let res = attempt(cred, fn);
 
