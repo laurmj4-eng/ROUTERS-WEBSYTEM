@@ -39,11 +39,13 @@ pkg install -y nodejs curl cloudflared termux-api git openssh termux-wake-lock
 git clone --depth 1 https://github.com/laurmj4-eng/ROUTERS-WEBSYTEM.git
 cd ROUTERS-WEBSYTEM/phone-agent
 cp config.example.json config.json
-sed -i 's/CHANGE_ME_to_the_RELAY_TOKEN_from_Render/olyzSW1HpvhjPG4XukxDcaVQ92FqdT3Yme8ObwRABMsLgC6E/' config.json
 ./start.sh
 ```
 
 ## Configure (manual, only if you didn't use the one-paste)
+
+`config.example.json` already ships with the working defaults (relay token,
+`adminpldt` / `AC2DIU7QW3ERTY6UPAS4DFG`). Copy it and edit only if yours differ:
 
 ```bash
 cd ROUTERS-WEBSYTEM/phone-agent
